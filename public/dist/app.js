@@ -11778,7 +11778,7 @@ regeneratorRuntime.mark(function _callee() {
       switch (_context.prev = _context.next) {
         case 0:
           _context.next = 2;
-          return _axios.default.post("http://localhost:3000/payment", {
+          return _axios.default.post(undefined, {
             customer_email: document.getElementById("customer_email").value,
             cart: _store.default.getState()
           });
