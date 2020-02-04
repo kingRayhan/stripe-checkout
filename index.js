@@ -1,7 +1,9 @@
 const express = require("express")
 const app = express()
 
-const db = require("./utils/db")
+// const db = require("./utils/db")
+
+require("dotenv").config()
 
 /**
  * Setup template engine
