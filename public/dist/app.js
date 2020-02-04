@@ -11794,9 +11794,10 @@ regeneratorRuntime.mark(function _callee() {
         case 6:
           _ref3 = _context.sent;
           error = _ref3.error;
+          document.getElementById("checkout").textContent = "Processing...";
           console.log(error);
 
-        case 9:
+        case 10:
         case "end":
           return _context.stop();
       }

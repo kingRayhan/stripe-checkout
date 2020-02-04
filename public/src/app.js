@@ -37,5 +37,7 @@ document.getElementById("checkout").addEventListener("click", async () => {
     sessionId: session.id
   })
 
+  document.getElementById("checkout").textContent = "Processing..."
+
   console.log(error)
 })
