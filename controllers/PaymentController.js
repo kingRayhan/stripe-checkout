@@ -16,7 +16,7 @@ const createPaymentSession = async (req, res) => {
   try {
     let session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      customer_email: "rayhan095@gmail.com",
+      customer_email,
       success_url: process.env.APP_URL,
       cancel_url: process.env.APP_URL,
       line_items
