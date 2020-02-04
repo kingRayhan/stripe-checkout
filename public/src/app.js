@@ -28,7 +28,7 @@ document.querySelectorAll(".buy-button").forEach(btn => {
 document.getElementById("checkout").addEventListener("click", async () => {
   let {
     data: { session }
-  } = await axios.post(process.env.APP_URL, {
+  } = await axios.post(process.env.APP_URL + "/payment", {
     customer_email: document.getElementById("customer_email").value,
     cart: store.getState()
   })
