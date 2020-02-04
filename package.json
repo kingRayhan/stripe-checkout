@@ -1,0 +1,28 @@
+{
+  "name": "bootcamp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "fn": "parcel build public/src/app.js --out-dir public/dist",
+    "fn-watch": "parcel watch public/src/app.js --out-dir public/dist",
+    "dev": "nodemon index",
+    "start": "node index"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/polyfill": "^7.8.3",
+    "axios": "^0.19.2",
+    "express": "^4.17.1",
+    "express-edge": "^2.0.1",
+    "lowdb": "^1.0.0",
+    "stripe": "^8.12.0",
+    "uuid": "^3.4.0"
+  },
+  "devDependencies": {
+    "@reduxjs/toolkit": "^1.2.3",
+    "parcel-bundler": "^1.12.4"
+  }
+}

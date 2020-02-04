@@ -1,0 +1,21 @@
+@layout('layouts.default')
+
+
+@section('page-content')
+    <div class="row">
+        @each(product in products)
+            <div class="col-md-4 mb-5">
+                <div class="card">
+                    <img class="card-img-top" src="{{ product.image }}"/>
+                    <div class="card-body">
+                        <h4>{{ product.title }}</h4>
+                        <p>${{ product.price }}</p>
+                        <button class="buy-button" data-product='{{{ stringify(product) }}}'>
+                            <i class="fa fa-cart-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        @endeach
+    </div>
+@endsection
