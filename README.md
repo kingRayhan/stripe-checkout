@@ -8,7 +8,6 @@ A basic ecommerce application for playaround with stripe in nodejs
 - Template Engine: [Edge from adonisjs](https://github.com/ecrmnn/express-edge)
 - Frontend Build-tool: [Parceljs](https://parceljs.org/)
 - State Management: [@reduxjs/toolkit](https://redux-toolkit.js.org/)
-- Http Fetcher: [Axios](https://github.com/axios/axios)
 - Products Data: https://fakestoreapi.com/
 
 ### Screenshots
