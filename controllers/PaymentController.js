@@ -1,17 +1,17 @@
-const stripe = require("stripe")("sk_test_y7Y3IOeULJyFTwq92e3AJhLE")
+const stripe = require("stripe")("sk_test_y7Y3IOeULJyFTwq92e3AJhLE");
 
 const createPaymentSession = async (req, res) => {
-  let { cart, customer_email } = req.body
+  let { cart, customer_email } = req.body;
 
-  line_items = cart.map(item => {
+  line_items = cart.map((item) => {
     return {
       name: item.title,
       images: [item.image],
       amount: item.price * 100,
       currency: "usd",
-      quantity: item.quantity
-    }
-  })
+      quantity: item.quantity,
+    };
+  });
 
   try {
     let session = await stripe.checkout.sessions.create({
@@ -19,15 +19,15 @@ const createPaymentSession = async (req, res) => {
       customer_email,
       success_url: process.env.APP_URL,
       cancel_url: process.env.APP_URL,
-      line_items
-    })
+      line_items,
+    });
 
     return res.json({
-      session
-    })
+      session,
+    });
   } catch (error) {
-    console.log(error)
+    console.log(error);
   }
-}
+};
 
-module.exports = { createPaymentSession }
+module.exports = { createPaymentSession };

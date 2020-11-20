@@ -2506,12 +2506,7 @@ require('./_object-sap')('seal', function ($seal) {
   };
 });
 
-},{"./_is-object":"../../node_modules/core-js/modules/_is-object.js","./_meta":"../../node_modules/core-js/modules/_meta.js","./_object-sap":"../../node_modules/core-js/modules/_object-sap.js"}],"../../node_modules/core-js/modules/es6.object.set-prototype-of.js":[function(require,module,exports) {
-// 19.1.3.19 Object.setPrototypeOf(O, proto)
-var $export = require('./_export');
-$export($export.S, 'Object', { setPrototypeOf: require('./_set-proto').set });
-
-},{"./_export":"../../node_modules/core-js/modules/_export.js","./_set-proto":"../../node_modules/core-js/modules/_set-proto.js"}],"../../node_modules/core-js/modules/es7.object.values.js":[function(require,module,exports) {
+},{"./_is-object":"../../node_modules/core-js/modules/_is-object.js","./_meta":"../../node_modules/core-js/modules/_meta.js","./_object-sap":"../../node_modules/core-js/modules/_object-sap.js"}],"../../node_modules/core-js/modules/es7.object.values.js":[function(require,module,exports) {
 // https://github.com/tc39/proposal-object-values-entries
 var $export = require('./_export');
 var $values = require('./_object-to-array')(false);
@@ -5870,6 +5865,7 @@ for (var collections = getKeys(DOMIterables), i = 0; i < collections.length; i++
 }
 
 },{"./es6.array.iterator":"../../node_modules/core-js/modules/es6.array.iterator.js","./_object-keys":"../../node_modules/core-js/modules/_object-keys.js","./_redefine":"../../node_modules/core-js/modules/_redefine.js","./_global":"../../node_modules/core-js/modules/_global.js","./_hide":"../../node_modules/core-js/modules/_hide.js","./_iterators":"../../node_modules/core-js/modules/_iterators.js","./_wks":"../../node_modules/core-js/modules/_wks.js"}],"../../node_modules/regenerator-runtime/runtime.js":[function(require,module,exports) {
+var define;
 /**
  * Copyright (c) 2014-present, Facebook, Inc.
  *
@@ -5887,6 +5883,24 @@ var runtime = (function (exports) {
   var iteratorSymbol = $Symbol.iterator || "@@iterator";
   var asyncIteratorSymbol = $Symbol.asyncIterator || "@@asyncIterator";
   var toStringTagSymbol = $Symbol.toStringTag || "@@toStringTag";
+
+  function define(obj, key, value) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+    return obj[key];
+  }
+  try {
+    // IE 8 has a broken Object.defineProperty that only works on DOM objects.
+    define({}, "");
+  } catch (err) {
+    define = function(obj, key, value) {
+      return obj[key] = value;
+    };
+  }
 
   function wrap(innerFn, outerFn, self, tryLocsList) {
     // If outerFn provided and outerFn.prototype is a Generator, then outerFn.prototype instanceof Generator.
@@ -5958,16 +5972,19 @@ var runtime = (function (exports) {
     Generator.prototype = Object.create(IteratorPrototype);
   GeneratorFunction.prototype = Gp.constructor = GeneratorFunctionPrototype;
   GeneratorFunctionPrototype.constructor = GeneratorFunction;
-  GeneratorFunctionPrototype[toStringTagSymbol] =
-    GeneratorFunction.displayName = "GeneratorFunction";
+  GeneratorFunction.displayName = define(
+    GeneratorFunctionPrototype,
+    toStringTagSymbol,
+    "GeneratorFunction"
+  );
 
   // Helper for defining the .next, .throw, and .return methods of the
   // Iterator interface in terms of a single ._invoke method.
   function defineIteratorMethods(prototype) {
     ["next", "throw", "return"].forEach(function(method) {
-      prototype[method] = function(arg) {
+      define(prototype, method, function(arg) {
         return this._invoke(method, arg);
-      };
+      });
     });
   }
 
@@ -5986,9 +6003,7 @@ var runtime = (function (exports) {
       Object.setPrototypeOf(genFun, GeneratorFunctionPrototype);
     } else {
       genFun.__proto__ = GeneratorFunctionPrototype;
-      if (!(toStringTagSymbol in genFun)) {
-        genFun[toStringTagSymbol] = "GeneratorFunction";
-      }
+      define(genFun, toStringTagSymbol, "GeneratorFunction");
     }
     genFun.prototype = Object.create(Gp);
     return genFun;
@@ -6002,7 +6017,7 @@ var runtime = (function (exports) {
     return { __await: arg };
   };
 
-  function AsyncIterator(generator) {
+  function AsyncIterator(generator, PromiseImpl) {
     function invoke(method, arg, resolve, reject) {
       var record = tryCatch(generator[method], generator, arg);
       if (record.type === "throw") {
@@ -6013,14 +6028,14 @@ var runtime = (function (exports) {
         if (value &&
             typeof value === "object" &&
             hasOwn.call(value, "__await")) {
-          return Promise.resolve(value.__await).then(function(value) {
+          return PromiseImpl.resolve(value.__await).then(function(value) {
             invoke("next", value, resolve, reject);
           }, function(err) {
             invoke("throw", err, resolve, reject);
           });
         }
 
-        return Promise.resolve(value).then(function(unwrapped) {
+        return PromiseImpl.resolve(value).then(function(unwrapped) {
           // When a yielded Promise is resolved, its final value becomes
           // the .value of the Promise<{value,done}> result for the
           // current iteration.
@@ -6038,7 +6053,7 @@ var runtime = (function (exports) {
 
     function enqueue(method, arg) {
       function callInvokeWithMethodAndArg() {
-        return new Promise(function(resolve, reject) {
+        return new PromiseImpl(function(resolve, reject) {
           invoke(method, arg, resolve, reject);
         });
       }
@@ -6078,9 +6093,12 @@ var runtime = (function (exports) {
   // Note that simple async functions are implemented on top of
   // AsyncIterator objects; they just return a Promise for the value of
   // the final result produced by the iterator.
-  exports.async = function(innerFn, outerFn, self, tryLocsList) {
+  exports.async = function(innerFn, outerFn, self, tryLocsList, PromiseImpl) {
+    if (PromiseImpl === void 0) PromiseImpl = Promise;
+
     var iter = new AsyncIterator(
-      wrap(innerFn, outerFn, self, tryLocsList)
+      wrap(innerFn, outerFn, self, tryLocsList),
+      PromiseImpl
     );
 
     return exports.isGeneratorFunction(outerFn)
@@ -6255,7 +6273,7 @@ var runtime = (function (exports) {
   // unified ._invoke helper method.
   defineIteratorMethods(Gp);
 
-  Gp[toStringTagSymbol] = "Generator";
+  define(Gp, toStringTagSymbol, "Generator");
 
   // A Generator should always return itself as the iterator object when the
   // @@iterator function is called on it. Some browsers' implementations of the
@@ -6597,6 +6615,1064 @@ try {
   Function("r", "regeneratorRuntime = r")(runtime);
 }
 
+},{}],"../../node_modules/immer/dist/immer.esm.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.castDraft = K;
+exports.castImmutable = $;
+exports.current = D;
+exports.enableAllPlugins = J;
+exports.enableES5 = T;
+exports.enableMapSet = C;
+exports.enablePatches = F;
+exports.isDraft = t;
+exports.isDraftable = r;
+exports.original = e;
+exports.setUseProxies = exports.setAutoFreeze = exports.produceWithPatches = exports.produce = exports.nothing = exports.immerable = exports.finishDraft = exports.createDraft = exports.applyPatches = exports.Immer = exports.default = void 0;
+
+function n(n) {
+  for (var t = arguments.length, r = Array(t > 1 ? t - 1 : 0), e = 1; e < t; e++) r[e - 1] = arguments[e];
+
+  if ("production" !== "development") {
+    var i = Y[n],
+        o = i ? "function" == typeof i ? i.apply(null, r) : i : "unknown error nr: " + n;
+    throw Error("[Immer] " + o);
+  }
+
+  throw Error("[Immer] minified error nr: " + n + (r.length ? " " + r.map(function (n) {
+    return "'" + n + "'";
+  }).join(",") : "") + ". Find the full error at: https://bit.ly/3cXEKWf");
+}
+
+function t(n) {
+  return !!n && !!n[Q];
+}
+
+function r(n) {
+  return !!n && (function (n) {
+    if (!n || "object" != typeof n) return !1;
+    var t = Object.getPrototypeOf(n);
+    return !t || t === Object.prototype;
+  }(n) || Array.isArray(n) || !!n[L] || !!n.constructor[L] || s(n) || v(n));
+}
+
+function e(r) {
+  return t(r) || n(23, r), r[Q].t;
+}
+
+function i(n, t, r) {
+  void 0 === r && (r = !1), 0 === o(n) ? (r ? Object.keys : Z)(n).forEach(function (e) {
+    r && "symbol" == typeof e || t(e, n[e], n);
+  }) : n.forEach(function (r, e) {
+    return t(e, r, n);
+  });
+}
+
+function o(n) {
+  var t = n[Q];
+  return t ? t.i > 3 ? t.i - 4 : t.i : Array.isArray(n) ? 1 : s(n) ? 2 : v(n) ? 3 : 0;
+}
+
+function u(n, t) {
+  return 2 === o(n) ? n.has(t) : Object.prototype.hasOwnProperty.call(n, t);
+}
+
+function a(n, t) {
+  return 2 === o(n) ? n.get(t) : n[t];
+}
+
+function f(n, t, r) {
+  var e = o(n);
+  2 === e ? n.set(t, r) : 3 === e ? (n.delete(t), n.add(r)) : n[t] = r;
+}
+
+function c(n, t) {
+  return n === t ? 0 !== n || 1 / n == 1 / t : n != n && t != t;
+}
+
+function s(n) {
+  return X && n instanceof Map;
+}
+
+function v(n) {
+  return q && n instanceof Set;
+}
+
+function p(n) {
+  return n.o || n.t;
+}
+
+function l(n) {
+  if (Array.isArray(n)) return Array.prototype.slice.call(n);
+  var t = nn(n);
+  delete t[Q];
+
+  for (var r = Z(t), e = 0; e < r.length; e++) {
+    var i = r[e],
+        o = t[i];
+    !1 === o.writable && (o.writable = !0, o.configurable = !0), (o.get || o.set) && (t[i] = {
+      configurable: !0,
+      writable: !0,
+      enumerable: o.enumerable,
+      value: n[i]
+    });
+  }
+
+  return Object.create(Object.getPrototypeOf(n), t);
+}
+
+function d(n, e) {
+  y(n) || t(n) || !r(n) || (o(n) > 1 && (n.set = n.add = n.clear = n.delete = h), Object.freeze(n), e && i(n, function (n, t) {
+    return d(t, !0);
+  }, !0));
+}
+
+function h() {
+  n(2);
+}
+
+function y(n) {
+  return null == n || "object" != typeof n || Object.isFrozen(n);
+}
+
+function b(t) {
+  var r = tn[t];
+  return r || n(18, t), r;
+}
+
+function m(n, t) {
+  tn[n] || (tn[n] = t);
+}
+
+function _() {
+  return "production" === "development" || U || n(0), U;
+}
+
+function j(n, t) {
+  t && (b("Patches"), n.u = [], n.s = [], n.v = t);
+}
+
+function g(n) {
+  O(n), n.p.forEach(S), n.p = null;
+}
+
+function O(n) {
+  n === U && (U = n.l);
+}
+
+function w(n) {
+  return U = {
+    p: [],
+    l: U,
+    h: n,
+    m: !0,
+    _: 0
+  };
+}
+
+function S(n) {
+  var t = n[Q];
+  0 === t.i || 1 === t.i ? t.j() : t.g = !0;
+}
+
+function P(t, e) {
+  e._ = e.p.length;
+  var i = e.p[0],
+      o = void 0 !== t && t !== i;
+  return e.h.O || b("ES5").S(e, t, o), o ? (i[Q].P && (g(e), n(4)), r(t) && (t = M(e, t), e.l || x(e, t)), e.u && b("Patches").M(i[Q], t, e.u, e.s)) : t = M(e, i, []), g(e), e.u && e.v(e.u, e.s), t !== H ? t : void 0;
+}
+
+function M(n, t, r) {
+  if (y(t)) return t;
+  var e = t[Q];
+  if (!e) return i(t, function (i, o) {
+    return A(n, e, t, i, o, r);
+  }, !0), t;
+  if (e.A !== n) return t;
+  if (!e.P) return x(n, e.t, !0), e.t;
+
+  if (!e.I) {
+    e.I = !0, e.A._--;
+    var o = 4 === e.i || 5 === e.i ? e.o = l(e.k) : e.o;
+    i(3 === e.i ? new Set(o) : o, function (t, i) {
+      return A(n, e, o, t, i, r);
+    }), x(n, o, !1), r && n.u && b("Patches").R(e, r, n.u, n.s);
+  }
+
+  return e.o;
+}
+
+function A(e, i, o, a, c, s) {
+  if ("production" !== "development" && c === o && n(5), t(c)) {
+    var v = M(e, c, s && i && 3 !== i.i && !u(i.D, a) ? s.concat(a) : void 0);
+    if (f(o, a, v), !t(v)) return;
+    e.m = !1;
+  }
+
+  if (r(c) && !y(c)) {
+    if (!e.h.N && e._ < 1) return;
+    M(e, c), i && i.A.l || x(e, c);
+  }
+}
+
+function x(n, t, r) {
+  void 0 === r && (r = !1), n.h.N && n.m && d(t, r);
+}
+
+function z(n, t) {
+  var r = n[Q];
+  return (r ? p(r) : n)[t];
+}
+
+function I(n, t) {
+  if (t in n) for (var r = Object.getPrototypeOf(n); r;) {
+    var e = Object.getOwnPropertyDescriptor(r, t);
+    if (e) return e;
+    r = Object.getPrototypeOf(r);
+  }
+}
+
+function E(n) {
+  n.P || (n.P = !0, n.l && E(n.l));
+}
+
+function k(n) {
+  n.o || (n.o = l(n.t));
+}
+
+function R(n, t, r) {
+  var e = s(t) ? b("MapSet").T(t, r) : v(t) ? b("MapSet").F(t, r) : n.O ? function (n, t) {
+    var r = Array.isArray(n),
+        e = {
+      i: r ? 1 : 0,
+      A: t ? t.A : _(),
+      P: !1,
+      I: !1,
+      D: {},
+      l: t,
+      t: n,
+      k: null,
+      o: null,
+      j: null,
+      C: !1
+    },
+        i = e,
+        o = rn;
+    r && (i = [e], o = en);
+    var u = Proxy.revocable(i, o),
+        a = u.revoke,
+        f = u.proxy;
+    return e.k = f, e.j = a, f;
+  }(t, r) : b("ES5").J(t, r);
+  return (r ? r.A : _()).p.push(e), e;
+}
+
+function D(e) {
+  return t(e) || n(22, e), function n(t) {
+    if (!r(t)) return t;
+    var e,
+        u = t[Q],
+        c = o(t);
+
+    if (u) {
+      if (!u.P && (u.i < 4 || !b("ES5").K(u))) return u.t;
+      u.I = !0, e = N(t, c), u.I = !1;
+    } else e = N(t, c);
+
+    return i(e, function (t, r) {
+      u && a(u.t, t) === r || f(e, t, n(r));
+    }), 3 === c ? new Set(e) : e;
+  }(e);
+}
+
+function N(n, t) {
+  switch (t) {
+    case 2:
+      return new Map(n);
+
+    case 3:
+      return Array.from(n);
+  }
+
+  return l(n);
+}
+
+function T() {
+  function r(n, t) {
+    var r = s[n];
+    return r ? r.enumerable = t : s[n] = r = {
+      configurable: !0,
+      enumerable: t,
+      get: function () {
+        var t = this[Q];
+        return "production" !== "development" && f(t), rn.get(t, n);
+      },
+      set: function (t) {
+        var r = this[Q];
+        "production" !== "development" && f(r), rn.set(r, n, t);
+      }
+    }, r;
+  }
+
+  function e(n) {
+    for (var t = n.length - 1; t >= 0; t--) {
+      var r = n[t][Q];
+      if (!r.P) switch (r.i) {
+        case 5:
+          a(r) && E(r);
+          break;
+
+        case 4:
+          o(r) && E(r);
+      }
+    }
+  }
+
+  function o(n) {
+    for (var t = n.t, r = n.k, e = Z(r), i = e.length - 1; i >= 0; i--) {
+      var o = e[i];
+
+      if (o !== Q) {
+        var a = t[o];
+        if (void 0 === a && !u(t, o)) return !0;
+        var f = r[o],
+            s = f && f[Q];
+        if (s ? s.t !== a : !c(f, a)) return !0;
+      }
+    }
+
+    var v = !!t[Q];
+    return e.length !== Z(t).length + (v ? 0 : 1);
+  }
+
+  function a(n) {
+    var t = n.k;
+    if (t.length !== n.t.length) return !0;
+    var r = Object.getOwnPropertyDescriptor(t, t.length - 1);
+    return !(!r || r.get);
+  }
+
+  function f(t) {
+    t.g && n(3, JSON.stringify(p(t)));
+  }
+
+  var s = {};
+  m("ES5", {
+    J: function (n, t) {
+      var e = Array.isArray(n),
+          i = function (n, t) {
+        if (n) {
+          for (var e = Array(t.length), i = 0; i < t.length; i++) Object.defineProperty(e, "" + i, r(i, !0));
+
+          return e;
+        }
+
+        var o = nn(t);
+        delete o[Q];
+
+        for (var u = Z(o), a = 0; a < u.length; a++) {
+          var f = u[a];
+          o[f] = r(f, n || !!o[f].enumerable);
+        }
+
+        return Object.create(Object.getPrototypeOf(t), o);
+      }(e, n),
+          o = {
+        i: e ? 5 : 4,
+        A: t ? t.A : _(),
+        P: !1,
+        I: !1,
+        D: {},
+        l: t,
+        t: n,
+        k: i,
+        o: null,
+        g: !1,
+        C: !1
+      };
+
+      return Object.defineProperty(i, Q, {
+        value: o,
+        writable: !0
+      }), i;
+    },
+    S: function (n, r, o) {
+      o ? t(r) && r[Q].A === n && e(n.p) : (n.u && function n(t) {
+        if (t && "object" == typeof t) {
+          var r = t[Q];
+
+          if (r) {
+            var e = r.t,
+                o = r.k,
+                f = r.D,
+                c = r.i;
+            if (4 === c) i(o, function (t) {
+              t !== Q && (void 0 !== e[t] || u(e, t) ? f[t] || n(o[t]) : (f[t] = !0, E(r)));
+            }), i(e, function (n) {
+              void 0 !== o[n] || u(o, n) || (f[n] = !1, E(r));
+            });else if (5 === c) {
+              if (a(r) && (E(r), f.length = !0), o.length < e.length) for (var s = o.length; s < e.length; s++) f[s] = !1;else for (var v = e.length; v < o.length; v++) f[v] = !0;
+
+              for (var p = Math.min(o.length, e.length), l = 0; l < p; l++) void 0 === f[l] && n(o[l]);
+            }
+          }
+        }
+      }(n.p[0]), e(n.p));
+    },
+    K: function (n) {
+      return 4 === n.i ? o(n) : a(n);
+    }
+  });
+}
+
+function F() {
+  function e(n) {
+    if (!r(n)) return n;
+    if (Array.isArray(n)) return n.map(e);
+    if (s(n)) return new Map(Array.from(n.entries()).map(function (n) {
+      return [n[0], e(n[1])];
+    }));
+    if (v(n)) return new Set(Array.from(n).map(e));
+    var t = Object.create(Object.getPrototypeOf(n));
+
+    for (var i in n) t[i] = e(n[i]);
+
+    return t;
+  }
+
+  function f(n) {
+    return t(n) ? e(n) : n;
+  }
+
+  var c = "add";
+  m("Patches", {
+    $: function (t, r) {
+      return r.forEach(function (r) {
+        for (var i = r.path, u = r.op, f = t, s = 0; s < i.length - 1; s++) "object" != typeof (f = a(f, i[s])) && n(15, i.join("/"));
+
+        var v = o(f),
+            p = e(r.value),
+            l = i[i.length - 1];
+
+        switch (u) {
+          case "replace":
+            switch (v) {
+              case 2:
+                return f.set(l, p);
+
+              case 3:
+                n(16);
+
+              default:
+                return f[l] = p;
+            }
+
+          case c:
+            switch (v) {
+              case 1:
+                return f.splice(l, 0, p);
+
+              case 2:
+                return f.set(l, p);
+
+              case 3:
+                return f.add(p);
+
+              default:
+                return f[l] = p;
+            }
+
+          case "remove":
+            switch (v) {
+              case 1:
+                return f.splice(l, 1);
+
+              case 2:
+                return f.delete(l);
+
+              case 3:
+                return f.delete(r.value);
+
+              default:
+                return delete f[l];
+            }
+
+          default:
+            n(17, u);
+        }
+      }), t;
+    },
+    R: function (n, t, r, e) {
+      switch (n.i) {
+        case 0:
+        case 4:
+        case 2:
+          return function (n, t, r, e) {
+            var o = n.t,
+                s = n.o;
+            i(n.D, function (n, i) {
+              var v = a(o, n),
+                  p = a(s, n),
+                  l = i ? u(o, n) ? "replace" : c : "remove";
+
+              if (v !== p || "replace" !== l) {
+                var d = t.concat(n);
+                r.push("remove" === l ? {
+                  op: l,
+                  path: d
+                } : {
+                  op: l,
+                  path: d,
+                  value: p
+                }), e.push(l === c ? {
+                  op: "remove",
+                  path: d
+                } : "remove" === l ? {
+                  op: c,
+                  path: d,
+                  value: f(v)
+                } : {
+                  op: "replace",
+                  path: d,
+                  value: f(v)
+                });
+              }
+            });
+          }(n, t, r, e);
+
+        case 5:
+        case 1:
+          return function (n, t, r, e) {
+            var i = n.t,
+                o = n.D,
+                u = n.o;
+
+            if (u.length < i.length) {
+              var a = [u, i];
+              i = a[0], u = a[1];
+              var s = [e, r];
+              r = s[0], e = s[1];
+            }
+
+            for (var v = 0; v < i.length; v++) if (o[v] && u[v] !== i[v]) {
+              var p = t.concat([v]);
+              r.push({
+                op: "replace",
+                path: p,
+                value: f(u[v])
+              }), e.push({
+                op: "replace",
+                path: p,
+                value: f(i[v])
+              });
+            }
+
+            for (var l = i.length; l < u.length; l++) {
+              var d = t.concat([l]);
+              r.push({
+                op: c,
+                path: d,
+                value: f(u[l])
+              });
+            }
+
+            i.length < u.length && e.push({
+              op: "replace",
+              path: t.concat(["length"]),
+              value: i.length
+            });
+          }(n, t, r, e);
+
+        case 3:
+          return function (n, t, r, e) {
+            var i = n.t,
+                o = n.o,
+                u = 0;
+            i.forEach(function (n) {
+              if (!o.has(n)) {
+                var i = t.concat([u]);
+                r.push({
+                  op: "remove",
+                  path: i,
+                  value: n
+                }), e.unshift({
+                  op: c,
+                  path: i,
+                  value: n
+                });
+              }
+
+              u++;
+            }), u = 0, o.forEach(function (n) {
+              if (!i.has(n)) {
+                var o = t.concat([u]);
+                r.push({
+                  op: c,
+                  path: o,
+                  value: n
+                }), e.unshift({
+                  op: "remove",
+                  path: o,
+                  value: n
+                });
+              }
+
+              u++;
+            });
+          }(n, t, r, e);
+      }
+    },
+    M: function (n, t, r, e) {
+      r.push({
+        op: "replace",
+        path: [],
+        value: t
+      }), e.push({
+        op: "replace",
+        path: [],
+        value: n.t
+      });
+    }
+  });
+}
+
+function C() {
+  function t(n, t) {
+    function r() {
+      this.constructor = n;
+    }
+
+    a(n, t), n.prototype = (r.prototype = t.prototype, new r());
+  }
+
+  function e(n) {
+    n.o || (n.D = new Map(), n.o = new Map(n.t));
+  }
+
+  function o(n) {
+    n.o || (n.o = new Set(), n.t.forEach(function (t) {
+      if (r(t)) {
+        var e = R(n.A.h, t, n);
+        n.p.set(t, e), n.o.add(e);
+      } else n.o.add(t);
+    }));
+  }
+
+  function u(t) {
+    t.g && n(3, JSON.stringify(p(t)));
+  }
+
+  var a = function (n, t) {
+    return (a = Object.setPrototypeOf || {
+      __proto__: []
+    } instanceof Array && function (n, t) {
+      n.__proto__ = t;
+    } || function (n, t) {
+      for (var r in t) t.hasOwnProperty(r) && (n[r] = t[r]);
+    })(n, t);
+  },
+      f = function () {
+    function n(n, t) {
+      return this[Q] = {
+        i: 2,
+        l: t,
+        A: t ? t.A : _(),
+        P: !1,
+        I: !1,
+        o: void 0,
+        D: void 0,
+        t: n,
+        k: this,
+        C: !1,
+        g: !1
+      }, this;
+    }
+
+    t(n, Map);
+    var o = n.prototype;
+    return Object.defineProperty(o, "size", {
+      get: function () {
+        return p(this[Q]).size;
+      }
+    }), o.has = function (n) {
+      return p(this[Q]).has(n);
+    }, o.set = function (n, t) {
+      var r = this[Q];
+      return u(r), p(r).has(n) && p(r).get(n) === t || (e(r), E(r), r.D.set(n, !0), r.o.set(n, t), r.D.set(n, !0)), this;
+    }, o.delete = function (n) {
+      if (!this.has(n)) return !1;
+      var t = this[Q];
+      return u(t), e(t), E(t), t.D.set(n, !1), t.o.delete(n), !0;
+    }, o.clear = function () {
+      var n = this[Q];
+      u(n), p(n).size && (e(n), E(n), n.D = new Map(), i(n.t, function (t) {
+        n.D.set(t, !1);
+      }), n.o.clear());
+    }, o.forEach = function (n, t) {
+      var r = this;
+      p(this[Q]).forEach(function (e, i) {
+        n.call(t, r.get(i), i, r);
+      });
+    }, o.get = function (n) {
+      var t = this[Q];
+      u(t);
+      var i = p(t).get(n);
+      if (t.I || !r(i)) return i;
+      if (i !== t.t.get(n)) return i;
+      var o = R(t.A.h, i, t);
+      return e(t), t.o.set(n, o), o;
+    }, o.keys = function () {
+      return p(this[Q]).keys();
+    }, o.values = function () {
+      var n,
+          t = this,
+          r = this.keys();
+      return (n = {})[V] = function () {
+        return t.values();
+      }, n.next = function () {
+        var n = r.next();
+        return n.done ? n : {
+          done: !1,
+          value: t.get(n.value)
+        };
+      }, n;
+    }, o.entries = function () {
+      var n,
+          t = this,
+          r = this.keys();
+      return (n = {})[V] = function () {
+        return t.entries();
+      }, n.next = function () {
+        var n = r.next();
+        if (n.done) return n;
+        var e = t.get(n.value);
+        return {
+          done: !1,
+          value: [n.value, e]
+        };
+      }, n;
+    }, o[V] = function () {
+      return this.entries();
+    }, n;
+  }(),
+      c = function () {
+    function n(n, t) {
+      return this[Q] = {
+        i: 3,
+        l: t,
+        A: t ? t.A : _(),
+        P: !1,
+        I: !1,
+        o: void 0,
+        t: n,
+        k: this,
+        p: new Map(),
+        g: !1,
+        C: !1
+      }, this;
+    }
+
+    t(n, Set);
+    var r = n.prototype;
+    return Object.defineProperty(r, "size", {
+      get: function () {
+        return p(this[Q]).size;
+      }
+    }), r.has = function (n) {
+      var t = this[Q];
+      return u(t), t.o ? !!t.o.has(n) || !(!t.p.has(n) || !t.o.has(t.p.get(n))) : t.t.has(n);
+    }, r.add = function (n) {
+      var t = this[Q];
+      return u(t), this.has(n) || (o(t), E(t), t.o.add(n)), this;
+    }, r.delete = function (n) {
+      if (!this.has(n)) return !1;
+      var t = this[Q];
+      return u(t), o(t), E(t), t.o.delete(n) || !!t.p.has(n) && t.o.delete(t.p.get(n));
+    }, r.clear = function () {
+      var n = this[Q];
+      u(n), p(n).size && (o(n), E(n), n.o.clear());
+    }, r.values = function () {
+      var n = this[Q];
+      return u(n), o(n), n.o.values();
+    }, r.entries = function () {
+      var n = this[Q];
+      return u(n), o(n), n.o.entries();
+    }, r.keys = function () {
+      return this.values();
+    }, r[V] = function () {
+      return this.values();
+    }, r.forEach = function (n, t) {
+      for (var r = this.values(), e = r.next(); !e.done;) n.call(t, e.value, e.value, this), e = r.next();
+    }, n;
+  }();
+
+  m("MapSet", {
+    T: function (n, t) {
+      return new f(n, t);
+    },
+    F: function (n, t) {
+      return new c(n, t);
+    }
+  });
+}
+
+function J() {
+  T(), C(), F();
+}
+
+function K(n) {
+  return n;
+}
+
+function $(n) {
+  return n;
+}
+
+var G,
+    U,
+    W = "undefined" != typeof Symbol && "symbol" == typeof Symbol("x"),
+    X = "undefined" != typeof Map,
+    q = "undefined" != typeof Set,
+    B = "undefined" != typeof Proxy && void 0 !== Proxy.revocable && "undefined" != typeof Reflect,
+    H = W ? Symbol.for("immer-nothing") : ((G = {})["immer-nothing"] = !0, G),
+    L = W ? Symbol.for("immer-draftable") : "__$immer_draftable",
+    Q = W ? Symbol.for("immer-state") : "__$immer_state",
+    V = "undefined" != typeof Symbol && Symbol.iterator || "@@iterator",
+    Y = {
+  0: "Illegal state",
+  1: "Immer drafts cannot have computed properties",
+  2: "This object has been frozen and should not be mutated",
+  3: function (n) {
+    return "Cannot use a proxy that has been revoked. Did you pass an object from inside an immer function to an async process? " + n;
+  },
+  4: "An immer producer returned a new value *and* modified its draft. Either return a new value *or* modify the draft.",
+  5: "Immer forbids circular references",
+  6: "The first or second argument to `produce` must be a function",
+  7: "The third argument to `produce` must be a function or undefined",
+  8: "First argument to `createDraft` must be a plain object, an array, or an immerable object",
+  9: "First argument to `finishDraft` must be a draft returned by `createDraft`",
+  10: "The given draft is already finalized",
+  11: "Object.defineProperty() cannot be used on an Immer draft",
+  12: "Object.setPrototypeOf() cannot be used on an Immer draft",
+  13: "Immer only supports deleting array indices",
+  14: "Immer only supports setting array indices and the 'length' property",
+  15: function (n) {
+    return "Cannot apply patch, path doesn't resolve: " + n;
+  },
+  16: 'Sets cannot have "replace" patches.',
+  17: function (n) {
+    return "Unsupported patch operation: " + n;
+  },
+  18: function (n) {
+    return "The plugin for '" + n + "' has not been loaded into Immer. To enable the plugin, import and call `enable" + n + "()` when initializing your application.";
+  },
+  20: "Cannot use proxies if Proxy, Proxy.revocable or Reflect are not available",
+  21: function (n) {
+    return "produce can only be called on things that are draftable: plain objects, arrays, Map, Set or classes that are marked with '[immerable]: true'. Got '" + n + "'";
+  },
+  22: function (n) {
+    return "'current' expects a draft, got: " + n;
+  },
+  23: function (n) {
+    return "'original' expects a draft, got: " + n;
+  }
+},
+    Z = "undefined" != typeof Reflect && Reflect.ownKeys ? Reflect.ownKeys : void 0 !== Object.getOwnPropertySymbols ? function (n) {
+  return Object.getOwnPropertyNames(n).concat(Object.getOwnPropertySymbols(n));
+} : Object.getOwnPropertyNames,
+    nn = Object.getOwnPropertyDescriptors || function (n) {
+  var t = {};
+  return Z(n).forEach(function (r) {
+    t[r] = Object.getOwnPropertyDescriptor(n, r);
+  }), t;
+},
+    tn = {},
+    rn = {
+  get: function (n, t) {
+    if (t === Q) return n;
+    var e = p(n);
+    if (!u(e, t)) return function (n, t, r) {
+      var e,
+          i = I(t, r);
+      return i ? "value" in i ? i.value : null === (e = i.get) || void 0 === e ? void 0 : e.call(n.k) : void 0;
+    }(n, e, t);
+    var i = e[t];
+    return n.I || !r(i) ? i : i === z(n.t, t) ? (k(n), n.o[t] = R(n.A.h, i, n)) : i;
+  },
+  has: function (n, t) {
+    return t in p(n);
+  },
+  ownKeys: function (n) {
+    return Reflect.ownKeys(p(n));
+  },
+  set: function (n, t, r) {
+    var e = I(p(n), t);
+    if (null == e ? void 0 : e.set) return e.set.call(n.k, r), !0;
+
+    if (!n.P) {
+      var i = z(p(n), t),
+          o = null == i ? void 0 : i[Q];
+      if (o && o.t === r) return n.o[t] = r, n.D[t] = !1, !0;
+      if (c(r, i) && (void 0 !== r || u(n.t, t))) return !0;
+      k(n), E(n);
+    }
+
+    return n.o[t] = r, n.D[t] = !0, !0;
+  },
+  deleteProperty: function (n, t) {
+    return void 0 !== z(n.t, t) || t in n.t ? (n.D[t] = !1, k(n), E(n)) : delete n.D[t], n.o && delete n.o[t], !0;
+  },
+  getOwnPropertyDescriptor: function (n, t) {
+    var r = p(n),
+        e = Reflect.getOwnPropertyDescriptor(r, t);
+    return e ? {
+      writable: !0,
+      configurable: 1 !== n.i || "length" !== t,
+      enumerable: e.enumerable,
+      value: r[t]
+    } : e;
+  },
+  defineProperty: function () {
+    n(11);
+  },
+  getPrototypeOf: function (n) {
+    return Object.getPrototypeOf(n.t);
+  },
+  setPrototypeOf: function () {
+    n(12);
+  }
+},
+    en = {};
+
+exports.immerable = L;
+exports.nothing = H;
+i(rn, function (n, t) {
+  en[n] = function () {
+    return arguments[0] = arguments[0][0], t.apply(this, arguments);
+  };
+}), en.deleteProperty = function (t, r) {
+  return "production" !== "development" && isNaN(parseInt(r)) && n(13), rn.deleteProperty.call(this, t[0], r);
+}, en.set = function (t, r, e) {
+  return "production" !== "development" && "length" !== r && isNaN(parseInt(r)) && n(14), rn.set.call(this, t[0], r, e, t[0]);
+};
+
+var on = function () {
+  function e(n) {
+    this.O = B, this.N = "production" !== "development", "boolean" == typeof (null == n ? void 0 : n.useProxies) && this.setUseProxies(n.useProxies), "boolean" == typeof (null == n ? void 0 : n.autoFreeze) && this.setAutoFreeze(n.autoFreeze), this.produce = this.produce.bind(this), this.produceWithPatches = this.produceWithPatches.bind(this);
+  }
+
+  var i = e.prototype;
+  return i.produce = function (t, e, i) {
+    if ("function" == typeof t && "function" != typeof e) {
+      var o = e;
+      e = t;
+      var u = this;
+      return function (n) {
+        var t = this;
+        void 0 === n && (n = o);
+
+        for (var r = arguments.length, i = Array(r > 1 ? r - 1 : 0), a = 1; a < r; a++) i[a - 1] = arguments[a];
+
+        return u.produce(n, function (n) {
+          var r;
+          return (r = e).call.apply(r, [t, n].concat(i));
+        });
+      };
+    }
+
+    var a;
+
+    if ("function" != typeof e && n(6), void 0 !== i && "function" != typeof i && n(7), r(t)) {
+      var f = w(this),
+          c = R(this, t, void 0),
+          s = !0;
+
+      try {
+        a = e(c), s = !1;
+      } finally {
+        s ? g(f) : O(f);
+      }
+
+      return "undefined" != typeof Promise && a instanceof Promise ? a.then(function (n) {
+        return j(f, i), P(n, f);
+      }, function (n) {
+        throw g(f), n;
+      }) : (j(f, i), P(a, f));
+    }
+
+    if (!t || "object" != typeof t) {
+      if ((a = e(t)) === H) return;
+      return void 0 === a && (a = t), this.N && d(a, !0), a;
+    }
+
+    n(21, t);
+  }, i.produceWithPatches = function (n, t) {
+    var r,
+        e,
+        i = this;
+    return "function" == typeof n ? function (t) {
+      for (var r = arguments.length, e = Array(r > 1 ? r - 1 : 0), o = 1; o < r; o++) e[o - 1] = arguments[o];
+
+      return i.produceWithPatches(t, function (t) {
+        return n.apply(void 0, [t].concat(e));
+      });
+    } : [this.produce(n, t, function (n, t) {
+      r = n, e = t;
+    }), r, e];
+  }, i.createDraft = function (e) {
+    r(e) || n(8), t(e) && (e = D(e));
+    var i = w(this),
+        o = R(this, e, void 0);
+    return o[Q].C = !0, O(i), o;
+  }, i.finishDraft = function (t, r) {
+    var e = t && t[Q];
+    "production" !== "development" && (e && e.C || n(9), e.I && n(10));
+    var i = e.A;
+    return j(i, r), P(void 0, i);
+  }, i.setAutoFreeze = function (n) {
+    this.N = n;
+  }, i.setUseProxies = function (t) {
+    t && !B && n(20), this.O = t;
+  }, i.applyPatches = function (n, r) {
+    var e;
+
+    for (e = r.length - 1; e >= 0; e--) {
+      var i = r[e];
+
+      if (0 === i.path.length && "replace" === i.op) {
+        n = i.value;
+        break;
+      }
+    }
+
+    var o = b("Patches").$;
+    return t(n) ? o(n, r) : this.produce(n, function (n) {
+      return o(n, r.slice(e + 1));
+    });
+  }, e;
+}(),
+    un = new on(),
+    an = un.produce,
+    fn = un.produceWithPatches.bind(un),
+    cn = un.setAutoFreeze.bind(un),
+    sn = un.setUseProxies.bind(un),
+    vn = un.applyPatches.bind(un),
+    pn = un.createDraft.bind(un),
+    ln = un.finishDraft.bind(un);
+
+exports.finishDraft = ln;
+exports.createDraft = pn;
+exports.applyPatches = vn;
+exports.setUseProxies = sn;
+exports.setAutoFreeze = cn;
+exports.produceWithPatches = fn;
+exports.produce = an;
+exports.Immer = on;
+var _default = an;
+exports.default = _default;
 },{}],"../../node_modules/symbol-observable/es/ponyfill.js":[function(require,module,exports) {
 "use strict";
 
@@ -7335,1542 +8411,7 @@ function isCrushed() {}
 if ("development" !== 'production' && typeof isCrushed.name === 'string' && isCrushed.name !== 'isCrushed') {
   warning('You are currently using minified code outside of NODE_ENV === "production". ' + 'This means that you are running a slower development build of Redux. ' + 'You can use loose-envify (https://github.com/zertosh/loose-envify) for browserify ' + 'or setting mode to production in webpack (https://webpack.js.org/concepts/mode/) ' + 'to ensure you have the correct code for your production build.');
 }
-},{"symbol-observable":"../../node_modules/symbol-observable/es/index.js"}],"../../node_modules/process/browser.js":[function(require,module,exports) {
-
-// shim for using process in browser
-var process = module.exports = {}; // cached from whatever global is present so that test runners that stub it
-// don't break things.  But we need to wrap it in a try catch in case it is
-// wrapped in strict mode code which doesn't define any globals.  It's inside a
-// function because try/catches deoptimize in certain engines.
-
-var cachedSetTimeout;
-var cachedClearTimeout;
-
-function defaultSetTimout() {
-  throw new Error('setTimeout has not been defined');
-}
-
-function defaultClearTimeout() {
-  throw new Error('clearTimeout has not been defined');
-}
-
-(function () {
-  try {
-    if (typeof setTimeout === 'function') {
-      cachedSetTimeout = setTimeout;
-    } else {
-      cachedSetTimeout = defaultSetTimout;
-    }
-  } catch (e) {
-    cachedSetTimeout = defaultSetTimout;
-  }
-
-  try {
-    if (typeof clearTimeout === 'function') {
-      cachedClearTimeout = clearTimeout;
-    } else {
-      cachedClearTimeout = defaultClearTimeout;
-    }
-  } catch (e) {
-    cachedClearTimeout = defaultClearTimeout;
-  }
-})();
-
-function runTimeout(fun) {
-  if (cachedSetTimeout === setTimeout) {
-    //normal enviroments in sane situations
-    return setTimeout(fun, 0);
-  } // if setTimeout wasn't available but was latter defined
-
-
-  if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
-    cachedSetTimeout = setTimeout;
-    return setTimeout(fun, 0);
-  }
-
-  try {
-    // when when somebody has screwed with setTimeout but no I.E. maddness
-    return cachedSetTimeout(fun, 0);
-  } catch (e) {
-    try {
-      // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
-      return cachedSetTimeout.call(null, fun, 0);
-    } catch (e) {
-      // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
-      return cachedSetTimeout.call(this, fun, 0);
-    }
-  }
-}
-
-function runClearTimeout(marker) {
-  if (cachedClearTimeout === clearTimeout) {
-    //normal enviroments in sane situations
-    return clearTimeout(marker);
-  } // if clearTimeout wasn't available but was latter defined
-
-
-  if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
-    cachedClearTimeout = clearTimeout;
-    return clearTimeout(marker);
-  }
-
-  try {
-    // when when somebody has screwed with setTimeout but no I.E. maddness
-    return cachedClearTimeout(marker);
-  } catch (e) {
-    try {
-      // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
-      return cachedClearTimeout.call(null, marker);
-    } catch (e) {
-      // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
-      // Some versions of I.E. have different rules for clearTimeout vs setTimeout
-      return cachedClearTimeout.call(this, marker);
-    }
-  }
-}
-
-var queue = [];
-var draining = false;
-var currentQueue;
-var queueIndex = -1;
-
-function cleanUpNextTick() {
-  if (!draining || !currentQueue) {
-    return;
-  }
-
-  draining = false;
-
-  if (currentQueue.length) {
-    queue = currentQueue.concat(queue);
-  } else {
-    queueIndex = -1;
-  }
-
-  if (queue.length) {
-    drainQueue();
-  }
-}
-
-function drainQueue() {
-  if (draining) {
-    return;
-  }
-
-  var timeout = runTimeout(cleanUpNextTick);
-  draining = true;
-  var len = queue.length;
-
-  while (len) {
-    currentQueue = queue;
-    queue = [];
-
-    while (++queueIndex < len) {
-      if (currentQueue) {
-        currentQueue[queueIndex].run();
-      }
-    }
-
-    queueIndex = -1;
-    len = queue.length;
-  }
-
-  currentQueue = null;
-  draining = false;
-  runClearTimeout(timeout);
-}
-
-process.nextTick = function (fun) {
-  var args = new Array(arguments.length - 1);
-
-  if (arguments.length > 1) {
-    for (var i = 1; i < arguments.length; i++) {
-      args[i - 1] = arguments[i];
-    }
-  }
-
-  queue.push(new Item(fun, args));
-
-  if (queue.length === 1 && !draining) {
-    runTimeout(drainQueue);
-  }
-}; // v8 likes predictible objects
-
-
-function Item(fun, array) {
-  this.fun = fun;
-  this.array = array;
-}
-
-Item.prototype.run = function () {
-  this.fun.apply(null, this.array);
-};
-
-process.title = 'browser';
-process.env = {};
-process.argv = [];
-process.version = ''; // empty string to avoid regexp issues
-
-process.versions = {};
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-process.prependListener = noop;
-process.prependOnceListener = noop;
-
-process.listeners = function (name) {
-  return [];
-};
-
-process.binding = function (name) {
-  throw new Error('process.binding is not supported');
-};
-
-process.cwd = function () {
-  return '/';
-};
-
-process.chdir = function (dir) {
-  throw new Error('process.chdir is not supported');
-};
-
-process.umask = function () {
-  return 0;
-};
-},{}],"../../node_modules/immer/dist/immer.module.js":[function(require,module,exports) {
-var process = require("process");
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.isDraft = isDraft;
-exports.isDraftable = isDraftable;
-exports.original = original;
-exports.setUseProxies = exports.setAutoFreeze = exports.produceWithPatches = exports.produce = exports.nothing = exports.immerable = exports.finishDraft = exports.createDraft = exports.applyPatches = exports.Immer = exports.default = void 0;
-var obj;
-var NOTHING = typeof Symbol !== "undefined" ? Symbol("immer-nothing") : (obj = {}, obj["immer-nothing"] = true, obj);
-exports.nothing = NOTHING;
-var DRAFTABLE = typeof Symbol !== "undefined" && Symbol.for ? Symbol.for("immer-draftable") : "__$immer_draftable";
-exports.immerable = DRAFTABLE;
-var DRAFT_STATE = typeof Symbol !== "undefined" && Symbol.for ? Symbol.for("immer-state") : "__$immer_state";
-
-function isDraft(value) {
-  return !!value && !!value[DRAFT_STATE];
-}
-
-function isDraftable(value) {
-  if (!value) {
-    return false;
-  }
-
-  return isPlainObject(value) || !!value[DRAFTABLE] || !!value.constructor[DRAFTABLE];
-}
-
-function isPlainObject(value) {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  if (Array.isArray(value)) {
-    return true;
-  }
-
-  var proto = Object.getPrototypeOf(value);
-  return !proto || proto === Object.prototype;
-}
-
-function original(value) {
-  if (value && value[DRAFT_STATE]) {
-    return value[DRAFT_STATE].base;
-  } // otherwise return undefined
-
-}
-
-var assign = Object.assign || function assign(target, value) {
-  for (var key in value) {
-    if (has(value, key)) {
-      target[key] = value[key];
-    }
-  }
-
-  return target;
-};
-
-var ownKeys = typeof Reflect !== "undefined" && Reflect.ownKeys ? Reflect.ownKeys : typeof Object.getOwnPropertySymbols !== "undefined" ? function (obj) {
-  return Object.getOwnPropertyNames(obj).concat(Object.getOwnPropertySymbols(obj));
-} : Object.getOwnPropertyNames;
-
-function shallowCopy(base, invokeGetters) {
-  if (invokeGetters === void 0) invokeGetters = false;
-
-  if (Array.isArray(base)) {
-    return base.slice();
-  }
-
-  var clone = Object.create(Object.getPrototypeOf(base));
-  ownKeys(base).forEach(function (key) {
-    if (key === DRAFT_STATE) {
-      return; // Never copy over draft state.
-    }
-
-    var desc = Object.getOwnPropertyDescriptor(base, key);
-    var value = desc.value;
-
-    if (desc.get) {
-      if (!invokeGetters) {
-        throw new Error("Immer drafts cannot have computed properties");
-      }
-
-      value = desc.get.call(base);
-    }
-
-    if (desc.enumerable) {
-      clone[key] = value;
-    } else {
-      Object.defineProperty(clone, key, {
-        value: value,
-        writable: true,
-        configurable: true
-      });
-    }
-  });
-  return clone;
-}
-
-function each(value, cb) {
-  if (Array.isArray(value)) {
-    for (var i = 0; i < value.length; i++) {
-      cb(i, value[i], value);
-    }
-  } else {
-    ownKeys(value).forEach(function (key) {
-      return cb(key, value[key], value);
-    });
-  }
-}
-
-function isEnumerable(base, prop) {
-  var desc = Object.getOwnPropertyDescriptor(base, prop);
-  return !!desc && desc.enumerable;
-}
-
-function has(thing, prop) {
-  return Object.prototype.hasOwnProperty.call(thing, prop);
-}
-
-function is(x, y) {
-  // From: https://github.com/facebook/fbjs/blob/c69904a511b900266935168223063dd8772dfc40/packages/fbjs/src/core/shallowEqual.js
-  if (x === y) {
-    return x !== 0 || 1 / x === 1 / y;
-  } else {
-    return x !== x && y !== y;
-  }
-}
-
-function clone(obj) {
-  if (!isDraftable(obj)) {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(clone);
-  }
-
-  var cloned = Object.create(Object.getPrototypeOf(obj));
-
-  for (var key in obj) {
-    cloned[key] = clone(obj[key]);
-  }
-
-  return cloned;
-}
-
-function deepFreeze(obj) {
-  if (!isDraftable(obj) || isDraft(obj) || Object.isFrozen(obj)) {
-    return;
-  }
-
-  Object.freeze(obj);
-
-  if (Array.isArray(obj)) {
-    obj.forEach(deepFreeze);
-  } else {
-    for (var key in obj) {
-      deepFreeze(obj[key]);
-    }
-  }
-}
-/** Each scope represents a `produce` call. */
-
-
-var ImmerScope = function ImmerScope(parent) {
-  this.drafts = [];
-  this.parent = parent; // Whenever the modified draft contains a draft from another scope, we
-  // need to prevent auto-freezing so the unowned draft can be finalized.
-
-  this.canAutoFreeze = true; // To avoid prototype lookups:
-
-  this.patches = null;
-};
-
-ImmerScope.prototype.usePatches = function usePatches(patchListener) {
-  if (patchListener) {
-    this.patches = [];
-    this.inversePatches = [];
-    this.patchListener = patchListener;
-  }
-};
-
-ImmerScope.prototype.revoke = function revoke$1() {
-  this.leave();
-  this.drafts.forEach(revoke);
-  this.drafts = null; // Make draft-related methods throw.
-};
-
-ImmerScope.prototype.leave = function leave() {
-  if (this === ImmerScope.current) {
-    ImmerScope.current = this.parent;
-  }
-};
-
-ImmerScope.current = null;
-
-ImmerScope.enter = function () {
-  return this.current = new ImmerScope(this.current);
-};
-
-function revoke(draft) {
-  draft[DRAFT_STATE].revoke();
-} // but share them all instead
-
-
-var descriptors = {};
-
-function willFinalize(scope, result, isReplaced) {
-  scope.drafts.forEach(function (draft) {
-    draft[DRAFT_STATE].finalizing = true;
-  });
-
-  if (!isReplaced) {
-    if (scope.patches) {
-      markChangesRecursively(scope.drafts[0]);
-    } // This is faster when we don't care about which attributes changed.
-
-
-    markChangesSweep(scope.drafts);
-  } // When a child draft is returned, look for changes.
-  else if (isDraft(result) && result[DRAFT_STATE].scope === scope) {
-      markChangesSweep(scope.drafts);
-    }
-}
-
-function createProxy(base, parent) {
-  var isArray = Array.isArray(base);
-  var draft = clonePotentialDraft(base);
-  each(draft, function (prop) {
-    proxyProperty(draft, prop, isArray || isEnumerable(base, prop));
-  }); // See "proxy.js" for property documentation.
-
-  var scope = parent ? parent.scope : ImmerScope.current;
-  var state = {
-    scope: scope,
-    modified: false,
-    finalizing: false,
-    // es5 only
-    finalized: false,
-    assigned: {},
-    parent: parent,
-    base: base,
-    draft: draft,
-    copy: null,
-    revoke: revoke$1,
-    revoked: false // es5 only
-
-  };
-  createHiddenProperty(draft, DRAFT_STATE, state);
-  scope.drafts.push(draft);
-  return draft;
-}
-
-function revoke$1() {
-  this.revoked = true;
-}
-
-function source(state) {
-  return state.copy || state.base;
-} // Access a property without creating an Immer draft.
-
-
-function peek(draft, prop) {
-  var state = draft[DRAFT_STATE];
-
-  if (state && !state.finalizing) {
-    state.finalizing = true;
-    var value = draft[prop];
-    state.finalizing = false;
-    return value;
-  }
-
-  return draft[prop];
-}
-
-function get(state, prop) {
-  assertUnrevoked(state);
-  var value = peek(source(state), prop);
-
-  if (state.finalizing) {
-    return value;
-  } // Create a draft if the value is unmodified.
-
-
-  if (value === peek(state.base, prop) && isDraftable(value)) {
-    prepareCopy(state);
-    return state.copy[prop] = createProxy(value, state);
-  }
-
-  return value;
-}
-
-function set(state, prop, value) {
-  assertUnrevoked(state);
-  state.assigned[prop] = true;
-
-  if (!state.modified) {
-    if (is(value, peek(source(state), prop))) {
-      return;
-    }
-
-    markChanged(state);
-    prepareCopy(state);
-  }
-
-  state.copy[prop] = value;
-}
-
-function markChanged(state) {
-  if (!state.modified) {
-    state.modified = true;
-
-    if (state.parent) {
-      markChanged(state.parent);
-    }
-  }
-}
-
-function prepareCopy(state) {
-  if (!state.copy) {
-    state.copy = clonePotentialDraft(state.base);
-  }
-}
-
-function clonePotentialDraft(base) {
-  var state = base && base[DRAFT_STATE];
-
-  if (state) {
-    state.finalizing = true;
-    var draft = shallowCopy(state.draft, true);
-    state.finalizing = false;
-    return draft;
-  }
-
-  return shallowCopy(base);
-}
-
-function proxyProperty(draft, prop, enumerable) {
-  var desc = descriptors[prop];
-
-  if (desc) {
-    desc.enumerable = enumerable;
-  } else {
-    descriptors[prop] = desc = {
-      configurable: true,
-      enumerable: enumerable,
-      get: function get$1() {
-        return get(this[DRAFT_STATE], prop);
-      },
-      set: function set$1(value) {
-        set(this[DRAFT_STATE], prop, value);
-      }
-    };
-  }
-
-  Object.defineProperty(draft, prop, desc);
-}
-
-function assertUnrevoked(state) {
-  if (state.revoked === true) {
-    throw new Error("Cannot use a proxy that has been revoked. Did you pass an object from inside an immer function to an async process? " + JSON.stringify(source(state)));
-  }
-} // This looks expensive, but only proxies are visited, and only objects without known changes are scanned.
-
-
-function markChangesSweep(drafts) {
-  // The natural order of drafts in the `scope` array is based on when they
-  // were accessed. By processing drafts in reverse natural order, we have a
-  // better chance of processing leaf nodes first. When a leaf node is known to
-  // have changed, we can avoid any traversal of its ancestor nodes.
-  for (var i = drafts.length - 1; i >= 0; i--) {
-    var state = drafts[i][DRAFT_STATE];
-
-    if (!state.modified) {
-      if (Array.isArray(state.base)) {
-        if (hasArrayChanges(state)) {
-          markChanged(state);
-        }
-      } else if (hasObjectChanges(state)) {
-        markChanged(state);
-      }
-    }
-  }
-}
-
-function markChangesRecursively(object) {
-  if (!object || typeof object !== "object") {
-    return;
-  }
-
-  var state = object[DRAFT_STATE];
-
-  if (!state) {
-    return;
-  }
-
-  var base = state.base;
-  var draft = state.draft;
-  var assigned = state.assigned;
-
-  if (!Array.isArray(object)) {
-    // Look for added keys.
-    Object.keys(draft).forEach(function (key) {
-      // The `undefined` check is a fast path for pre-existing keys.
-      if (base[key] === undefined && !has(base, key)) {
-        assigned[key] = true;
-        markChanged(state);
-      } else if (!assigned[key]) {
-        // Only untouched properties trigger recursion.
-        markChangesRecursively(draft[key]);
-      }
-    }); // Look for removed keys.
-
-    Object.keys(base).forEach(function (key) {
-      // The `undefined` check is a fast path for pre-existing keys.
-      if (draft[key] === undefined && !has(draft, key)) {
-        assigned[key] = false;
-        markChanged(state);
-      }
-    });
-  } else if (hasArrayChanges(state)) {
-    markChanged(state);
-    assigned.length = true;
-
-    if (draft.length < base.length) {
-      for (var i = draft.length; i < base.length; i++) {
-        assigned[i] = false;
-      }
-    } else {
-      for (var i$1 = base.length; i$1 < draft.length; i$1++) {
-        assigned[i$1] = true;
-      }
-    }
-
-    for (var i$2 = 0; i$2 < draft.length; i$2++) {
-      // Only untouched indices trigger recursion.
-      if (assigned[i$2] === undefined) {
-        markChangesRecursively(draft[i$2]);
-      }
-    }
-  }
-}
-
-function hasObjectChanges(state) {
-  var base = state.base;
-  var draft = state.draft; // Search for added keys and changed keys. Start at the back, because
-  // non-numeric keys are ordered by time of definition on the object.
-
-  var keys = Object.keys(draft);
-
-  for (var i = keys.length - 1; i >= 0; i--) {
-    var key = keys[i];
-    var baseValue = base[key]; // The `undefined` check is a fast path for pre-existing keys.
-
-    if (baseValue === undefined && !has(base, key)) {
-      return true;
-    } // Once a base key is deleted, future changes go undetected, because its
-    // descriptor is erased. This branch detects any missed changes.
-    else {
-        var value = draft[key];
-        var state$1 = value && value[DRAFT_STATE];
-
-        if (state$1 ? state$1.base !== baseValue : !is(value, baseValue)) {
-          return true;
-        }
-      }
-  } // At this point, no keys were added or changed.
-  // Compare key count to determine if keys were deleted.
-
-
-  return keys.length !== Object.keys(base).length;
-}
-
-function hasArrayChanges(state) {
-  var draft = state.draft;
-
-  if (draft.length !== state.base.length) {
-    return true;
-  } // See #116
-  // If we first shorten the length, our array interceptors will be removed.
-  // If after that new items are added, result in the same original length,
-  // those last items will have no intercepting property.
-  // So if there is no own descriptor on the last position, we know that items were removed and added
-  // N.B.: splice, unshift, etc only shift values around, but not prop descriptors, so we only have to check
-  // the last one
-
-
-  var descriptor = Object.getOwnPropertyDescriptor(draft, draft.length - 1); // descriptor can be null, but only for newly created sparse arrays, eg. new Array(10)
-
-  if (descriptor && !descriptor.get) {
-    return true;
-  } // For all other cases, we don't have to compare, as they would have been picked up by the index setters
-
-
-  return false;
-}
-
-function createHiddenProperty(target, prop, value) {
-  Object.defineProperty(target, prop, {
-    value: value,
-    enumerable: false,
-    writable: true
-  });
-}
-
-var legacyProxy =
-/*#__PURE__*/
-Object.freeze({
-  willFinalize: willFinalize,
-  createProxy: createProxy
-});
-
-function willFinalize$1() {}
-
-function createProxy$1(base, parent) {
-  var scope = parent ? parent.scope : ImmerScope.current;
-  var state = {
-    // Track which produce call this is associated with.
-    scope: scope,
-    // True for both shallow and deep changes.
-    modified: false,
-    // Used during finalization.
-    finalized: false,
-    // Track which properties have been assigned (true) or deleted (false).
-    assigned: {},
-    // The parent draft state.
-    parent: parent,
-    // The base state.
-    base: base,
-    // The base proxy.
-    draft: null,
-    // Any property proxies.
-    drafts: {},
-    // The base copy with any updated values.
-    copy: null,
-    // Called by the `produce` function.
-    revoke: null
-  };
-  var ref = Array.isArray(base) ? // [state] is used for arrays, to make sure the proxy is array-ish and not violate invariants,
-  // although state itself is an object
-  Proxy.revocable([state], arrayTraps) : Proxy.revocable(state, objectTraps);
-  var revoke = ref.revoke;
-  var proxy = ref.proxy;
-  state.draft = proxy;
-  state.revoke = revoke;
-  scope.drafts.push(proxy);
-  return proxy;
-}
-
-var objectTraps = {
-  get: get$1,
-  has: function has(target, prop) {
-    return prop in source$1(target);
-  },
-  ownKeys: function ownKeys(target) {
-    return Reflect.ownKeys(source$1(target));
-  },
-  set: set$1,
-  deleteProperty: deleteProperty,
-  getOwnPropertyDescriptor: getOwnPropertyDescriptor,
-  defineProperty: function defineProperty() {
-    throw new Error("Object.defineProperty() cannot be used on an Immer draft"); // prettier-ignore
-  },
-  getPrototypeOf: function getPrototypeOf(target) {
-    return Object.getPrototypeOf(target.base);
-  },
-  setPrototypeOf: function setPrototypeOf() {
-    throw new Error("Object.setPrototypeOf() cannot be used on an Immer draft"); // prettier-ignore
-  }
-};
-var arrayTraps = {};
-each(objectTraps, function (key, fn) {
-  arrayTraps[key] = function () {
-    arguments[0] = arguments[0][0];
-    return fn.apply(this, arguments);
-  };
-});
-
-arrayTraps.deleteProperty = function (state, prop) {
-  if (isNaN(parseInt(prop))) {
-    throw new Error("Immer only supports deleting array indices"); // prettier-ignore
-  }
-
-  return objectTraps.deleteProperty.call(this, state[0], prop);
-};
-
-arrayTraps.set = function (state, prop, value) {
-  if (prop !== "length" && isNaN(parseInt(prop))) {
-    throw new Error("Immer only supports setting array indices and the 'length' property"); // prettier-ignore
-  }
-
-  return objectTraps.set.call(this, state[0], prop, value);
-}; // returns the object we should be reading the current value from, which is base, until some change has been made
-
-
-function source$1(state) {
-  return state.copy || state.base;
-} // Access a property without creating an Immer draft.
-
-
-function peek$1(draft, prop) {
-  var state = draft[DRAFT_STATE];
-  var desc = Reflect.getOwnPropertyDescriptor(state ? source$1(state) : draft, prop);
-  return desc && desc.value;
-}
-
-function get$1(state, prop) {
-  if (prop === DRAFT_STATE) {
-    return state;
-  }
-
-  var drafts = state.drafts; // Check for existing draft in unmodified state.
-
-  if (!state.modified && has(drafts, prop)) {
-    return drafts[prop];
-  }
-
-  var value = source$1(state)[prop];
-
-  if (state.finalized || !isDraftable(value)) {
-    return value;
-  } // Check for existing draft in modified state.
-
-
-  if (state.modified) {
-    // Assigned values are never drafted. This catches any drafts we created, too.
-    if (value !== peek$1(state.base, prop)) {
-      return value;
-    } // Store drafts on the copy (when one exists).
-
-
-    drafts = state.copy;
-  }
-
-  return drafts[prop] = createProxy$1(value, state);
-}
-
-function set$1(state, prop, value) {
-  if (!state.modified) {
-    var baseValue = peek$1(state.base, prop); // Optimize based on value's truthiness. Truthy values are guaranteed to
-    // never be undefined, so we can avoid the `in` operator. Lastly, truthy
-    // values may be drafts, but falsy values are never drafts.
-
-    var isUnchanged = value ? is(baseValue, value) || value === state.drafts[prop] : is(baseValue, value) && prop in state.base;
-
-    if (isUnchanged) {
-      return true;
-    }
-
-    markChanged$1(state);
-  }
-
-  state.assigned[prop] = true;
-  state.copy[prop] = value;
-  return true;
-}
-
-function deleteProperty(state, prop) {
-  // The `undefined` check is a fast path for pre-existing keys.
-  if (peek$1(state.base, prop) !== undefined || prop in state.base) {
-    state.assigned[prop] = false;
-    markChanged$1(state);
-  } else if (state.assigned[prop]) {
-    // if an originally not assigned property was deleted
-    delete state.assigned[prop];
-  }
-
-  if (state.copy) {
-    delete state.copy[prop];
-  }
-
-  return true;
-} // Note: We never coerce `desc.value` into an Immer draft, because we can't make
-// the same guarantee in ES5 mode.
-
-
-function getOwnPropertyDescriptor(state, prop) {
-  var owner = source$1(state);
-  var desc = Reflect.getOwnPropertyDescriptor(owner, prop);
-
-  if (desc) {
-    desc.writable = true;
-    desc.configurable = !Array.isArray(owner) || prop !== "length";
-  }
-
-  return desc;
-}
-
-function markChanged$1(state) {
-  if (!state.modified) {
-    state.modified = true;
-    state.copy = assign(shallowCopy(state.base), state.drafts);
-    state.drafts = null;
-
-    if (state.parent) {
-      markChanged$1(state.parent);
-    }
-  }
-}
-
-var modernProxy =
-/*#__PURE__*/
-Object.freeze({
-  willFinalize: willFinalize$1,
-  createProxy: createProxy$1
-});
-
-function generatePatches(state, basePath, patches, inversePatches) {
-  Array.isArray(state.base) ? generateArrayPatches(state, basePath, patches, inversePatches) : generateObjectPatches(state, basePath, patches, inversePatches);
-}
-
-function generateArrayPatches(state, basePath, patches, inversePatches) {
-  var assign, assign$1;
-  var base = state.base;
-  var copy = state.copy;
-  var assigned = state.assigned; // Reduce complexity by ensuring `base` is never longer.
-
-  if (copy.length < base.length) {
-    assign = [copy, base], base = assign[0], copy = assign[1];
-    assign$1 = [inversePatches, patches], patches = assign$1[0], inversePatches = assign$1[1];
-  }
-
-  var delta = copy.length - base.length; // Find the first replaced index.
-
-  var start = 0;
-
-  while (base[start] === copy[start] && start < base.length) {
-    ++start;
-  } // Find the last replaced index. Search from the end to optimize splice patches.
-
-
-  var end = base.length;
-
-  while (end > start && base[end - 1] === copy[end + delta - 1]) {
-    --end;
-  } // Process replaced indices.
-
-
-  for (var i = start; i < end; ++i) {
-    if (assigned[i] && copy[i] !== base[i]) {
-      var path = basePath.concat([i]);
-      patches.push({
-        op: "replace",
-        path: path,
-        value: copy[i]
-      });
-      inversePatches.push({
-        op: "replace",
-        path: path,
-        value: base[i]
-      });
-    }
-  }
-
-  var replaceCount = patches.length; // Process added indices.
-
-  for (var i$1 = end + delta - 1; i$1 >= end; --i$1) {
-    var path$1 = basePath.concat([i$1]);
-    patches[replaceCount + i$1 - end] = {
-      op: "add",
-      path: path$1,
-      value: copy[i$1]
-    };
-    inversePatches.push({
-      op: "remove",
-      path: path$1
-    });
-  }
-}
-
-function generateObjectPatches(state, basePath, patches, inversePatches) {
-  var base = state.base;
-  var copy = state.copy;
-  each(state.assigned, function (key, assignedValue) {
-    var origValue = base[key];
-    var value = copy[key];
-    var op = !assignedValue ? "remove" : key in base ? "replace" : "add";
-
-    if (origValue === value && op === "replace") {
-      return;
-    }
-
-    var path = basePath.concat(key);
-    patches.push(op === "remove" ? {
-      op: op,
-      path: path
-    } : {
-      op: op,
-      path: path,
-      value: value
-    });
-    inversePatches.push(op === "add" ? {
-      op: "remove",
-      path: path
-    } : op === "remove" ? {
-      op: "add",
-      path: path,
-      value: origValue
-    } : {
-      op: "replace",
-      path: path,
-      value: origValue
-    });
-  });
-}
-
-var applyPatches = function (draft, patches) {
-  for (var i$1 = 0, list = patches; i$1 < list.length; i$1 += 1) {
-    var patch = list[i$1];
-    var path = patch.path;
-    var op = patch.op;
-    var value = clone(patch.value); // used to clone patch to ensure original patch is not modified, see #411
-
-    if (!path.length) {
-      throw new Error("Illegal state");
-    }
-
-    var base = draft;
-
-    for (var i = 0; i < path.length - 1; i++) {
-      base = base[path[i]];
-
-      if (!base || typeof base !== "object") {
-        throw new Error("Cannot apply patch, path doesn't resolve: " + path.join("/"));
-      } // prettier-ignore
-
-    }
-
-    var key = path[path.length - 1];
-
-    switch (op) {
-      case "replace":
-        // if value is an object, then it's assigned by reference
-        // in the following add or remove ops, the value field inside the patch will also be modifyed
-        // so we use value from the cloned patch
-        base[key] = value;
-        break;
-
-      case "add":
-        if (Array.isArray(base)) {
-          // TODO: support "foo/-" paths for appending to an array
-          base.splice(key, 0, value);
-        } else {
-          base[key] = value;
-        }
-
-        break;
-
-      case "remove":
-        if (Array.isArray(base)) {
-          base.splice(key, 1);
-        } else {
-          delete base[key];
-        }
-
-        break;
-
-      default:
-        throw new Error("Unsupported patch operation: " + op);
-    }
-  }
-
-  return draft;
-};
-
-function verifyMinified() {}
-
-var configDefaults = {
-  useProxies: typeof Proxy !== "undefined" && typeof Proxy.revocable !== "undefined" && typeof Reflect !== "undefined",
-  autoFreeze: typeof process !== "undefined" ? "development" !== "production" : verifyMinified.name === "verifyMinified",
-  onAssign: null,
-  onDelete: null,
-  onCopy: null
-};
-
-var Immer = function Immer(config) {
-  assign(this, configDefaults, config);
-  this.setUseProxies(this.useProxies);
-  this.produce = this.produce.bind(this);
-};
-
-exports.Immer = Immer;
-
-Immer.prototype.produce = function produce(base, recipe, patchListener) {
-  var this$1 = this; // curried invocation
-
-  if (typeof base === "function" && typeof recipe !== "function") {
-    var defaultBase = recipe;
-    recipe = base;
-    var self = this;
-    return function curriedProduce(base) {
-      var this$1 = this;
-      if (base === void 0) base = defaultBase;
-      var args = [],
-          len = arguments.length - 1;
-
-      while (len-- > 0) args[len] = arguments[len + 1];
-
-      return self.produce(base, function (draft) {
-        return recipe.call.apply(recipe, [this$1, draft].concat(args));
-      }); // prettier-ignore
-    };
-  } // prettier-ignore
-
-
-  {
-    if (typeof recipe !== "function") {
-      throw new Error("The first or second argument to `produce` must be a function");
-    }
-
-    if (patchListener !== undefined && typeof patchListener !== "function") {
-      throw new Error("The third argument to `produce` must be a function or undefined");
-    }
-  }
-  var result; // Only plain objects, arrays, and "immerable classes" are drafted.
-
-  if (isDraftable(base)) {
-    var scope = ImmerScope.enter();
-    var proxy = this.createProxy(base);
-    var hasError = true;
-
-    try {
-      result = recipe(proxy);
-      hasError = false;
-    } finally {
-      // finally instead of catch + rethrow better preserves original stack
-      if (hasError) {
-        scope.revoke();
-      } else {
-        scope.leave();
-      }
-    }
-
-    if (result instanceof Promise) {
-      return result.then(function (result) {
-        scope.usePatches(patchListener);
-        return this$1.processResult(result, scope);
-      }, function (error) {
-        scope.revoke();
-        throw error;
-      });
-    }
-
-    scope.usePatches(patchListener);
-    return this.processResult(result, scope);
-  } else {
-    result = recipe(base);
-
-    if (result === NOTHING) {
-      return undefined;
-    }
-
-    if (result === undefined) {
-      result = base;
-    }
-
-    this.maybeFreeze(result, true);
-    return result;
-  }
-};
-
-Immer.prototype.produceWithPatches = function produceWithPatches(arg1, arg2, arg3) {
-  var this$1 = this;
-
-  if (typeof arg1 === "function") {
-    return function (state) {
-      var args = [],
-          len = arguments.length - 1;
-
-      while (len-- > 0) args[len] = arguments[len + 1];
-
-      return this$1.produceWithPatches(state, function (draft) {
-        return arg1.apply(void 0, [draft].concat(args));
-      });
-    };
-  } // non-curried form
-
-
-  if (arg3) {
-    throw new Error("A patch listener cannot be passed to produceWithPatches");
-  }
-
-  var patches, inversePatches;
-  var nextState = this.produce(arg1, arg2, function (p, ip) {
-    patches = p;
-    inversePatches = ip;
-  });
-  return [nextState, patches, inversePatches];
-};
-
-Immer.prototype.createDraft = function createDraft(base) {
-  if (!isDraftable(base)) {
-    throw new Error("First argument to `createDraft` must be a plain object, an array, or an immerable object"); // prettier-ignore
-  }
-
-  var scope = ImmerScope.enter();
-  var proxy = this.createProxy(base);
-  proxy[DRAFT_STATE].isManual = true;
-  scope.leave();
-  return proxy;
-};
-
-Immer.prototype.finishDraft = function finishDraft(draft, patchListener) {
-  var state = draft && draft[DRAFT_STATE];
-
-  if (!state || !state.isManual) {
-    throw new Error("First argument to `finishDraft` must be a draft returned by `createDraft`"); // prettier-ignore
-  }
-
-  if (state.finalized) {
-    throw new Error("The given draft is already finalized"); // prettier-ignore
-  }
-
-  var scope = state.scope;
-  scope.usePatches(patchListener);
-  return this.processResult(undefined, scope);
-};
-
-Immer.prototype.setAutoFreeze = function setAutoFreeze(value) {
-  this.autoFreeze = value;
-};
-
-Immer.prototype.setUseProxies = function setUseProxies(value) {
-  this.useProxies = value;
-  assign(this, value ? modernProxy : legacyProxy);
-};
-
-Immer.prototype.applyPatches = function applyPatches$1(base, patches) {
-  // If a patch replaces the entire state, take that replacement as base
-  // before applying patches
-  var i;
-
-  for (i = patches.length - 1; i >= 0; i--) {
-    var patch = patches[i];
-
-    if (patch.path.length === 0 && patch.op === "replace") {
-      base = patch.value;
-      break;
-    }
-  }
-
-  if (isDraft(base)) {
-    // N.B: never hits if some patch a replacement, patches are never drafts
-    return applyPatches(base, patches);
-  } // Otherwise, produce a copy of the base state.
-
-
-  return this.produce(base, function (draft) {
-    return applyPatches(draft, patches.slice(i + 1));
-  });
-};
-/** @internal */
-
-
-Immer.prototype.processResult = function processResult(result, scope) {
-  var baseDraft = scope.drafts[0];
-  var isReplaced = result !== undefined && result !== baseDraft;
-  this.willFinalize(scope, result, isReplaced);
-
-  if (isReplaced) {
-    if (baseDraft[DRAFT_STATE].modified) {
-      scope.revoke();
-      throw new Error("An immer producer returned a new value *and* modified its draft. Either return a new value *or* modify the draft."); // prettier-ignore
-    }
-
-    if (isDraftable(result)) {
-      // Finalize the result in case it contains (or is) a subset of the draft.
-      result = this.finalize(result, null, scope);
-      this.maybeFreeze(result);
-    }
-
-    if (scope.patches) {
-      scope.patches.push({
-        op: "replace",
-        path: [],
-        value: result
-      });
-      scope.inversePatches.push({
-        op: "replace",
-        path: [],
-        value: baseDraft[DRAFT_STATE].base
-      });
-    }
-  } else {
-    // Finalize the base draft.
-    result = this.finalize(baseDraft, [], scope);
-  }
-
-  scope.revoke();
-
-  if (scope.patches) {
-    scope.patchListener(scope.patches, scope.inversePatches);
-  }
-
-  return result !== NOTHING ? result : undefined;
-};
-/**
- * @internal
- * Finalize a draft, returning either the unmodified base state or a modified
- * copy of the base state.
- */
-
-
-Immer.prototype.finalize = function finalize(draft, path, scope) {
-  var this$1 = this;
-  var state = draft[DRAFT_STATE];
-
-  if (!state) {
-    if (Object.isFrozen(draft)) {
-      return draft;
-    }
-
-    return this.finalizeTree(draft, null, scope);
-  } // Never finalize drafts owned by another scope.
-
-
-  if (state.scope !== scope) {
-    return draft;
-  }
-
-  if (!state.modified) {
-    this.maybeFreeze(state.base, true);
-    return state.base;
-  }
-
-  if (!state.finalized) {
-    state.finalized = true;
-    this.finalizeTree(state.draft, path, scope);
-
-    if (this.onDelete) {
-      // The `assigned` object is unreliable with ES5 drafts.
-      if (this.useProxies) {
-        var assigned = state.assigned;
-
-        for (var prop in assigned) {
-          if (!assigned[prop]) {
-            this.onDelete(state, prop);
-          }
-        }
-      } else {
-        var base = state.base;
-        var copy = state.copy;
-        each(base, function (prop) {
-          if (!has(copy, prop)) {
-            this$1.onDelete(state, prop);
-          }
-        });
-      }
-    }
-
-    if (this.onCopy) {
-      this.onCopy(state);
-    } // At this point, all descendants of `state.copy` have been finalized,
-    // so we can be sure that `scope.canAutoFreeze` is accurate.
-
-
-    if (this.autoFreeze && scope.canAutoFreeze) {
-      Object.freeze(state.copy);
-    }
-
-    if (path && scope.patches) {
-      generatePatches(state, path, scope.patches, scope.inversePatches);
-    }
-  }
-
-  return state.copy;
-};
-/**
- * @internal
- * Finalize all drafts in the given state tree.
- */
-
-
-Immer.prototype.finalizeTree = function finalizeTree(root, rootPath, scope) {
-  var this$1 = this;
-  var state = root[DRAFT_STATE];
-
-  if (state) {
-    if (!this.useProxies) {
-      // Create the final copy, with added keys and without deleted keys.
-      state.copy = shallowCopy(state.draft, true);
-    }
-
-    root = state.copy;
-  }
-
-  var needPatches = !!rootPath && !!scope.patches;
-
-  var finalizeProperty = function (prop, value, parent) {
-    if (value === parent) {
-      throw Error("Immer forbids circular references");
-    } // In the `finalizeTree` method, only the `root` object may be a draft.
-
-
-    var isDraftProp = !!state && parent === root;
-
-    if (isDraft(value)) {
-      var path = isDraftProp && needPatches && !state.assigned[prop] ? rootPath.concat(prop) : null; // Drafts owned by `scope` are finalized here.
-
-      value = this$1.finalize(value, path, scope); // Drafts from another scope must prevent auto-freezing.
-
-      if (isDraft(value)) {
-        scope.canAutoFreeze = false;
-      } // Preserve non-enumerable properties.
-
-
-      if (Array.isArray(parent) || isEnumerable(parent, prop)) {
-        parent[prop] = value;
-      } else {
-        Object.defineProperty(parent, prop, {
-          value: value
-        });
-      } // Unchanged drafts are never passed to the `onAssign` hook.
-
-
-      if (isDraftProp && value === state.base[prop]) {
-        return;
-      }
-    } // Unchanged draft properties are ignored.
-    else if (isDraftProp && is(value, state.base[prop])) {
-        return;
-      } // Search new objects for unfinalized drafts. Frozen objects should never contain drafts.
-      else if (isDraftable(value) && !Object.isFrozen(value)) {
-          each(value, finalizeProperty);
-          this$1.maybeFreeze(value);
-        }
-
-    if (isDraftProp && this$1.onAssign) {
-      this$1.onAssign(state, prop, value);
-    }
-  };
-
-  each(root, finalizeProperty);
-  return root;
-};
-
-Immer.prototype.maybeFreeze = function maybeFreeze(value, deep) {
-  if (deep === void 0) deep = false;
-
-  if (this.autoFreeze && !isDraft(value)) {
-    if (deep) {
-      deepFreeze(value);
-    } else {
-      Object.freeze(value);
-    }
-  }
-};
-
-var immer = new Immer();
-/**
- * The `produce` function takes a value and a "recipe function" (whose
- * return value often depends on the base state). The recipe function is
- * free to mutate its first argument however it wants. All mutations are
- * only ever applied to a __copy__ of the base state.
- *
- * Pass only a function to create a "curried producer" which relieves you
- * from passing the recipe function every time.
- *
- * Only plain objects and arrays are made mutable. All other objects are
- * considered uncopyable.
- *
- * Note: This function is __bound__ to its `Immer` instance.
- *
- * @param {any} base - the initial state
- * @param {Function} producer - function that receives a proxy of the base state as first argument and which can be freely modified
- * @param {Function} patchListener - optional function that will be called with all the patches produced here
- * @returns {any} a new state, or the initial state if nothing was modified
- */
-
-var produce = immer.produce;
-/**
- * Like `produce`, but `produceWithPatches` always returns a tuple
- * [nextState, patches, inversePatches] (instead of just the next state)
- */
-
-exports.produce = produce;
-var produceWithPatches = immer.produceWithPatches.bind(immer);
-/**
- * Pass true to automatically freeze all copies created by Immer.
- *
- * By default, auto-freezing is disabled in production.
- */
-
-exports.produceWithPatches = produceWithPatches;
-var setAutoFreeze = immer.setAutoFreeze.bind(immer);
-/**
- * Pass true to use the ES2015 `Proxy` class when creating drafts, which is
- * always faster than using ES5 proxies.
- *
- * By default, feature detection is used, so calling this is rarely necessary.
- */
-
-exports.setAutoFreeze = setAutoFreeze;
-var setUseProxies = immer.setUseProxies.bind(immer);
-/**
- * Apply an array of Immer patches to the first argument.
- *
- * This function is a producer, which means copy-on-write is in effect.
- */
-
-exports.setUseProxies = setUseProxies;
-var applyPatches$1 = immer.applyPatches.bind(immer);
-/**
- * Create an Immer draft from the given base state, which may be a draft itself.
- * The draft can be modified until you finalize it with the `finishDraft` function.
- */
-
-exports.applyPatches = applyPatches$1;
-var createDraft = immer.createDraft.bind(immer);
-/**
- * Finalize an Immer draft from a `createDraft` call, returning the base state
- * (if no changes were made) or a modified copy. The draft must *not* be
- * mutated afterwards.
- *
- * Pass a function as the 2nd argument to generate Immer patches based on the
- * changes that were made.
- */
-
-exports.createDraft = createDraft;
-var finishDraft = immer.finishDraft.bind(immer);
-exports.finishDraft = finishDraft;
-var _default = produce;
-exports.default = _default;
-},{"process":"../../node_modules/process/browser.js"}],"../../node_modules/reselect/es/index.js":[function(require,module,exports) {
+},{"symbol-observable":"../../node_modules/symbol-observable/es/index.js"}],"../../node_modules/reselect/es/index.js":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9003,29 +8544,7 @@ function createStructuredSelector(selectors) {
     }, {});
   });
 }
-},{}],"../../node_modules/redux-devtools-extension/index.js":[function(require,module,exports) {
-"use strict";
-
-var compose = require('redux').compose;
-
-exports.__esModule = true;
-exports.composeWithDevTools = (
-  typeof window !== 'undefined' && window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
-    window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ :
-    function() {
-      if (arguments.length === 0) return undefined;
-      if (typeof arguments[0] === 'object') return compose;
-      return compose.apply(null, arguments);
-    }
-);
-
-exports.devToolsEnhancer = (
-  typeof window !== 'undefined' && window.__REDUX_DEVTOOLS_EXTENSION__ ?
-    window.__REDUX_DEVTOOLS_EXTENSION__ :
-    function() { return function(noop) { return noop; } }
-);
-
-},{"redux":"../../node_modules/redux/es/redux.js"}],"../../node_modules/redux-thunk/es/index.js":[function(require,module,exports) {
+},{}],"../../node_modules/redux-thunk/es/index.js":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9053,278 +8572,57 @@ var thunk = createThunkMiddleware();
 thunk.withExtraArgument = createThunkMiddleware;
 var _default = thunk;
 exports.default = _default;
-},{}],"../../node_modules/invariant/browser.js":[function(require,module,exports) {
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-'use strict';
-/**
- * Use invariant() to assert state which your program assumes to be true.
- *
- * Provide sprintf-style format (only %s is supported) and arguments
- * to provide information about what broke and what you were
- * expecting.
- *
- * The invariant message will be stripped in production, but the invariant
- * will remain to ensure logic does not differ in production.
- */
-
-var invariant = function (condition, format, a, b, c, d, e, f) {
-  if ("development" !== 'production') {
-    if (format === undefined) {
-      throw new Error('invariant requires an error message argument');
-    }
-  }
-
-  if (!condition) {
-    var error;
-
-    if (format === undefined) {
-      error = new Error('Minified exception occurred; use the non-minified dev environment ' + 'for the full error message and additional helpful warnings.');
-    } else {
-      var args = [a, b, c, d, e, f];
-      var argIndex = 0;
-      error = new Error(format.replace(/%s/g, function () {
-        return args[argIndex++];
-      }));
-      error.name = 'Invariant Violation';
-    }
-
-    error.framesToPop = 1; // we don't care about invariant's own frame
-
-    throw error;
-  }
-};
-
-module.exports = invariant;
-},{}],"../../node_modules/json-stringify-safe/stringify.js":[function(require,module,exports) {
-exports = module.exports = stringify
-exports.getSerialize = serializer
-
-function stringify(obj, replacer, spaces, cycleReplacer) {
-  return JSON.stringify(obj, serializer(replacer, cycleReplacer), spaces)
-}
-
-function serializer(replacer, cycleReplacer) {
-  var stack = [], keys = []
-
-  if (cycleReplacer == null) cycleReplacer = function(key, value) {
-    if (stack[0] === value) return "[Circular ~]"
-    return "[Circular ~." + keys.slice(0, stack.indexOf(value)).join(".") + "]"
-  }
-
-  return function(key, value) {
-    if (stack.length > 0) {
-      var thisPos = stack.indexOf(this)
-      ~thisPos ? stack.splice(thisPos + 1) : stack.push(this)
-      ~thisPos ? keys.splice(thisPos, Infinity, key) : keys.push(key)
-      if (~stack.indexOf(value)) value = cycleReplacer.call(this, key, value)
-    }
-    else stack.push(value)
-
-    return replacer == null ? value : replacer.call(this, key, value)
-  }
-}
-
-},{}],"../../node_modules/redux-immutable-state-invariant/dist/isImmutable.js":[function(require,module,exports) {
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-exports.default = isImmutableDefault;
-function isImmutableDefault(value) {
-  return (typeof value === 'undefined' ? 'undefined' : _typeof(value)) !== 'object' || value === null || typeof value === 'undefined';
-}
-},{}],"../../node_modules/redux-immutable-state-invariant/dist/trackForMutations.js":[function(require,module,exports) {
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.default = trackForMutations;
-function trackForMutations(isImmutable, ignore, obj) {
-  var trackedProperties = trackProperties(isImmutable, ignore, obj);
-  return {
-    detectMutations: function detectMutations() {
-      return _detectMutations(isImmutable, ignore, trackedProperties, obj);
-    }
-  };
-}
-
-function trackProperties(isImmutable) {
-  var ignore = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-  var obj = arguments[2];
-  var path = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : [];
-
-  var tracked = { value: obj };
-
-  if (!isImmutable(obj)) {
-    tracked.children = {};
-
-    for (var key in obj) {
-      var childPath = path.concat(key);
-      if (ignore.length && ignore.indexOf(childPath.join('.')) !== -1) {
-        continue;
-      }
-
-      tracked.children[key] = trackProperties(isImmutable, ignore, obj[key], childPath);
-    }
-  }
-  return tracked;
-}
-
-function _detectMutations(isImmutable) {
-  var ignore = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-  var trackedProperty = arguments[2];
-  var obj = arguments[3];
-  var sameParentRef = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : false;
-  var path = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : [];
-
-  var prevObj = trackedProperty ? trackedProperty.value : undefined;
-
-  var sameRef = prevObj === obj;
-
-  if (sameParentRef && !sameRef && !Number.isNaN(obj)) {
-    return { wasMutated: true, path: path };
-  }
-
-  if (isImmutable(prevObj) || isImmutable(obj)) {
-    return { wasMutated: false };
-  }
-
-  // Gather all keys from prev (tracked) and after objs
-  var keysToDetect = {};
-  Object.keys(trackedProperty.children).forEach(function (key) {
-    keysToDetect[key] = true;
-  });
-  Object.keys(obj).forEach(function (key) {
-    keysToDetect[key] = true;
-  });
-
-  var keys = Object.keys(keysToDetect);
-  for (var i = 0; i < keys.length; i++) {
-    var key = keys[i];
-    var childPath = path.concat(key);
-    if (ignore.length && ignore.indexOf(childPath.join('.')) !== -1) {
-      continue;
-    }
-
-    var result = _detectMutations(isImmutable, ignore, trackedProperty.children[key], obj[key], sameRef, childPath);
-
-    if (result.wasMutated) {
-      return result;
-    }
-  }
-  return { wasMutated: false };
-}
-},{}],"../../node_modules/redux-immutable-state-invariant/dist/index.js":[function(require,module,exports) {
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.default = immutableStateInvariantMiddleware;
-
-var _invariant = require('invariant');
-
-var _invariant2 = _interopRequireDefault(_invariant);
-
-var _jsonStringifySafe = require('json-stringify-safe');
-
-var _jsonStringifySafe2 = _interopRequireDefault(_jsonStringifySafe);
-
-var _isImmutable = require('./isImmutable');
-
-var _isImmutable2 = _interopRequireDefault(_isImmutable);
-
-var _trackForMutations = require('./trackForMutations');
-
-var _trackForMutations2 = _interopRequireDefault(_trackForMutations);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-var BETWEEN_DISPATCHES_MESSAGE = ['A state mutation was detected between dispatches, in the path `%s`.', 'This may cause incorrect behavior.', '(http://redux.js.org/docs/Troubleshooting.html#never-mutate-reducer-arguments)'].join(' ');
-
-var INSIDE_DISPATCH_MESSAGE = ['A state mutation was detected inside a dispatch, in the path: `%s`.', 'Take a look at the reducer(s) handling the action %s.', '(http://redux.js.org/docs/Troubleshooting.html#never-mutate-reducer-arguments)'].join(' ');
-
-function immutableStateInvariantMiddleware() {
-  var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-  var _options$isImmutable = options.isImmutable,
-      isImmutable = _options$isImmutable === undefined ? _isImmutable2.default : _options$isImmutable,
-      ignore = options.ignore;
-
-  var track = _trackForMutations2.default.bind(null, isImmutable, ignore);
-
-  return function (_ref) {
-    var getState = _ref.getState;
-
-    var state = getState();
-    var tracker = track(state);
-
-    var result = void 0;
-    return function (next) {
-      return function (action) {
-        state = getState();
-
-        result = tracker.detectMutations();
-        // Track before potentially not meeting the invariant
-        tracker = track(state);
-
-        (0, _invariant2.default)(!result.wasMutated, BETWEEN_DISPATCHES_MESSAGE, (result.path || []).join('.'));
-
-        var dispatchedAction = next(action);
-        state = getState();
-
-        result = tracker.detectMutations();
-        // Track before potentially not meeting the invariant
-        tracker = track(state);
-
-        result.wasMutated && (0, _invariant2.default)(!result.wasMutated, INSIDE_DISPATCH_MESSAGE, (result.path || []).join('.'), (0, _jsonStringifySafe2.default)(action));
-
-        return dispatchedAction;
-      };
-    };
-  };
-}
-},{"invariant":"../../node_modules/invariant/browser.js","json-stringify-safe":"../../node_modules/json-stringify-safe/stringify.js","./isImmutable":"../../node_modules/redux-immutable-state-invariant/dist/isImmutable.js","./trackForMutations":"../../node_modules/redux-immutable-state-invariant/dist/trackForMutations.js"}],"../../node_modules/@reduxjs/toolkit/dist/redux-toolkit.esm.js":[function(require,module,exports) {
+},{}],"../../node_modules/@reduxjs/toolkit/dist/redux-toolkit.esm.js":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 var _exportNames = {
+  MiddlewareArray: true,
   configureStore: true,
   createAction: true,
+  createAsyncThunk: true,
+  createEntityAdapter: true,
+  createImmutableStateInvariantMiddleware: true,
   createReducer: true,
   createSerializableStateInvariantMiddleware: true,
   createSlice: true,
   findNonSerializableValue: true,
   getDefaultMiddleware: true,
   getType: true,
+  isImmutableDefault: true,
   isPlain: true,
+  nanoid: true,
+  unwrapResult: true,
   createNextState: true,
+  current: true,
   createSelector: true
 };
 exports.configureStore = configureStore;
 exports.createAction = createAction;
+exports.createAsyncThunk = createAsyncThunk;
+exports.createEntityAdapter = createEntityAdapter;
+exports.createImmutableStateInvariantMiddleware = createImmutableStateInvariantMiddleware;
 exports.createReducer = createReducer;
 exports.createSerializableStateInvariantMiddleware = createSerializableStateInvariantMiddleware;
 exports.createSlice = createSlice;
 exports.findNonSerializableValue = findNonSerializableValue;
 exports.getDefaultMiddleware = getDefaultMiddleware;
 exports.getType = getType;
+exports.isImmutableDefault = isImmutableDefault;
 exports.isPlain = isPlain;
+exports.unwrapResult = unwrapResult;
 Object.defineProperty(exports, "createNextState", {
   enumerable: true,
   get: function () {
     return _immer.default;
+  }
+});
+Object.defineProperty(exports, "current", {
+  enumerable: true,
+  get: function () {
+    return _immer.current;
   }
 });
 Object.defineProperty(exports, "createSelector", {
@@ -9333,12 +8631,16 @@ Object.defineProperty(exports, "createSelector", {
     return _reselect.createSelector;
   }
 });
+exports.nanoid = exports.MiddlewareArray = void 0;
+
+var _immer = _interopRequireWildcard(require("immer"));
 
 var _redux = require("redux");
 
 Object.keys(_redux).forEach(function (key) {
   if (key === "default" || key === "__esModule") return;
   if (Object.prototype.hasOwnProperty.call(_exportNames, key)) return;
+  if (key in exports && exports[key] === _redux[key]) return;
   Object.defineProperty(exports, key, {
     enumerable: true,
     get: function () {
@@ -9347,17 +8649,15 @@ Object.keys(_redux).forEach(function (key) {
   });
 });
 
-var _immer = _interopRequireDefault(require("immer"));
-
 var _reselect = require("reselect");
-
-var _reduxDevtoolsExtension = require("redux-devtools-extension");
 
 var _reduxThunk = _interopRequireDefault(require("redux-thunk"));
 
-var _reduxImmutableStateInvariant = _interopRequireDefault(require("redux-immutable-state-invariant"));
-
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _getRequireWildcardCache() { if (typeof WeakMap !== "function") return null; var cache = new WeakMap(); _getRequireWildcardCache = function () { return cache; }; return cache; }
+
+function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
 
 function _extends() {
   _extends = Object.assign || function (target) {
@@ -9376,6 +8676,106 @@ function _extends() {
 
   return _extends.apply(this, arguments);
 }
+
+function _inheritsLoose(subClass, superClass) {
+  subClass.prototype = Object.create(superClass.prototype);
+  subClass.prototype.constructor = subClass;
+  subClass.__proto__ = superClass;
+}
+
+function _getPrototypeOf(o) {
+  _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) {
+    return o.__proto__ || Object.getPrototypeOf(o);
+  };
+  return _getPrototypeOf(o);
+}
+
+function _setPrototypeOf(o, p) {
+  _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
+    o.__proto__ = p;
+    return o;
+  };
+
+  return _setPrototypeOf(o, p);
+}
+
+function isNativeReflectConstruct() {
+  if (typeof Reflect === "undefined" || !Reflect.construct) return false;
+  if (Reflect.construct.sham) return false;
+  if (typeof Proxy === "function") return true;
+
+  try {
+    Date.prototype.toString.call(Reflect.construct(Date, [], function () {}));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function _construct(Parent, args, Class) {
+  if (isNativeReflectConstruct()) {
+    _construct = Reflect.construct;
+  } else {
+    _construct = function _construct(Parent, args, Class) {
+      var a = [null];
+      a.push.apply(a, args);
+      var Constructor = Function.bind.apply(Parent, a);
+      var instance = new Constructor();
+      if (Class) _setPrototypeOf(instance, Class.prototype);
+      return instance;
+    };
+  }
+
+  return _construct.apply(null, arguments);
+}
+
+function _isNativeFunction(fn) {
+  return Function.toString.call(fn).indexOf("[native code]") !== -1;
+}
+
+function _wrapNativeSuper(Class) {
+  var _cache = typeof Map === "function" ? new Map() : undefined;
+
+  _wrapNativeSuper = function _wrapNativeSuper(Class) {
+    if (Class === null || !_isNativeFunction(Class)) return Class;
+
+    if (typeof Class !== "function") {
+      throw new TypeError("Super expression must either be null or a function");
+    }
+
+    if (typeof _cache !== "undefined") {
+      if (_cache.has(Class)) return _cache.get(Class);
+
+      _cache.set(Class, Wrapper);
+    }
+
+    function Wrapper() {
+      return _construct(Class, arguments, _getPrototypeOf(this).constructor);
+    }
+
+    Wrapper.prototype = Object.create(Class.prototype, {
+      constructor: {
+        value: Wrapper,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+    return _setPrototypeOf(Wrapper, Class);
+  };
+
+  return _wrapNativeSuper(Class);
+}
+/**
+ * @public
+ */
+
+
+var composeWithDevTools = typeof window !== 'undefined' && window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ? window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ : function () {
+  if (arguments.length === 0) return undefined;
+  if (typeof arguments[0] === 'object') return _redux.compose;
+  return _redux.compose.apply(null, arguments);
+};
 /**
  * Returns true if the passed value is "plain" object, i.e. an object whose
  * protoype is the root `Object.prototype`. This includes objects created
@@ -9384,7 +8784,6 @@ function _extends() {
  * @param {any} value The value to inspect.
  * @returns {boolean} True if the argument appears to be a plain object.
  */
-
 
 function isPlainObject(value) {
   if (typeof value !== 'object' || value === null) return false;
@@ -9395,6 +8794,283 @@ function isPlainObject(value) {
   }
 
   return Object.getPrototypeOf(value) === proto;
+}
+
+function getTimeMeasureUtils(maxDelay, fnName) {
+  var elapsed = 0;
+  return {
+    measureTime: function measureTime(fn) {
+      var started = Date.now();
+
+      try {
+        return fn();
+      } finally {
+        var finished = Date.now();
+        elapsed += finished - started;
+      }
+    },
+    warnIfExceeded: function warnIfExceeded() {
+      if (elapsed > maxDelay) {
+        console.warn(fnName + " took " + elapsed + "ms, which is more than the warning threshold of " + maxDelay + "ms. \nIf your state or actions are very large, you may want to disable the middleware as it might cause too much of a slowdown in development mode. See https://redux-toolkit.js.org/api/getDefaultMiddleware for instructions.\nIt is disabled in production builds, so you don't need to worry about that.");
+      }
+    }
+  };
+}
+/**
+ * @public
+ */
+
+
+var MiddlewareArray = /*#__PURE__*/function (_Array) {
+  _inheritsLoose(MiddlewareArray, _Array);
+
+  function MiddlewareArray() {
+    return _Array.apply(this, arguments) || this;
+  }
+
+  var _proto = MiddlewareArray.prototype;
+
+  _proto.concat = function concat() {
+    var _Array$prototype$conc;
+
+    for (var _len = arguments.length, arr = new Array(_len), _key = 0; _key < _len; _key++) {
+      arr[_key] = arguments[_key];
+    }
+
+    return _construct(MiddlewareArray, (_Array$prototype$conc = _Array.prototype.concat).call.apply(_Array$prototype$conc, [this].concat(arr)));
+  };
+
+  _proto.prepend = function prepend() {
+    for (var _len2 = arguments.length, arr = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      arr[_key2] = arguments[_key2];
+    }
+
+    if (arr.length === 1 && Array.isArray(arr[0])) {
+      return _construct(MiddlewareArray, arr[0].concat(this));
+    }
+
+    return _construct(MiddlewareArray, arr.concat(this));
+  };
+
+  return MiddlewareArray;
+}( /*#__PURE__*/_wrapNativeSuper(Array));
+
+exports.MiddlewareArray = MiddlewareArray;
+var isProduction = "development" === 'production';
+var prefix = 'Invariant failed'; // Throw an error if the condition fails
+// Strip out error messages for production
+// > Not providing an inline default argument for message as the result is smaller
+
+function invariant(condition, message) {
+  if (condition) {
+    return;
+  } // Condition not passed
+  // In production we strip the message but still throw
+
+
+  if (isProduction) {
+    throw new Error(prefix);
+  } // When not in production we allow the message to pass through
+  // *This block will be removed in production builds*
+
+
+  throw new Error(prefix + ": " + (message || ''));
+}
+
+function stringify(obj, serializer, indent, decycler) {
+  return JSON.stringify(obj, getSerialize(serializer, decycler), indent);
+}
+
+function getSerialize(serializer, decycler) {
+  var stack = [],
+      keys = [];
+  if (!decycler) decycler = function decycler(_, value) {
+    if (stack[0] === value) return '[Circular ~]';
+    return '[Circular ~.' + keys.slice(0, stack.indexOf(value)).join('.') + ']';
+  };
+  return function (key, value) {
+    if (stack.length > 0) {
+      var thisPos = stack.indexOf(this);
+      ~thisPos ? stack.splice(thisPos + 1) : stack.push(this);
+      ~thisPos ? keys.splice(thisPos, Infinity, key) : keys.push(key);
+      if (~stack.indexOf(value)) value = decycler.call(this, key, value);
+    } else stack.push(value);
+
+    return serializer == null ? value : serializer.call(this, key, value);
+  };
+}
+/**
+ * The default `isImmutable` function.
+ *
+ * @public
+ */
+
+
+function isImmutableDefault(value) {
+  return typeof value !== 'object' || value === null || typeof value === 'undefined';
+}
+
+function trackForMutations(isImmutable, ignorePaths, obj) {
+  var trackedProperties = trackProperties(isImmutable, ignorePaths, obj);
+  return {
+    detectMutations: function detectMutations() {
+      return _detectMutations(isImmutable, ignorePaths, trackedProperties, obj);
+    }
+  };
+}
+
+function trackProperties(isImmutable, ignorePaths, obj, path) {
+  if (ignorePaths === void 0) {
+    ignorePaths = [];
+  }
+
+  if (path === void 0) {
+    path = [];
+  }
+
+  var tracked = {
+    value: obj
+  };
+
+  if (!isImmutable(obj)) {
+    tracked.children = {};
+
+    for (var key in obj) {
+      var childPath = path.concat(key);
+
+      if (ignorePaths.length && ignorePaths.indexOf(childPath.join('.')) !== -1) {
+        continue;
+      }
+
+      tracked.children[key] = trackProperties(isImmutable, ignorePaths, obj[key], childPath);
+    }
+  }
+
+  return tracked;
+}
+
+function _detectMutations(isImmutable, ignorePaths, trackedProperty, obj, sameParentRef, path) {
+  if (ignorePaths === void 0) {
+    ignorePaths = [];
+  }
+
+  if (sameParentRef === void 0) {
+    sameParentRef = false;
+  }
+
+  if (path === void 0) {
+    path = [];
+  }
+
+  var prevObj = trackedProperty ? trackedProperty.value : undefined;
+  var sameRef = prevObj === obj;
+
+  if (sameParentRef && !sameRef && !Number.isNaN(obj)) {
+    return {
+      wasMutated: true,
+      path: path
+    };
+  }
+
+  if (isImmutable(prevObj) || isImmutable(obj)) {
+    return {
+      wasMutated: false
+    };
+  } // Gather all keys from prev (tracked) and after objs
+
+
+  var keysToDetect = {};
+  Object.keys(trackedProperty.children).forEach(function (key) {
+    keysToDetect[key] = true;
+  });
+  Object.keys(obj).forEach(function (key) {
+    keysToDetect[key] = true;
+  });
+  var keys = Object.keys(keysToDetect);
+
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var childPath = path.concat(key);
+
+    if (ignorePaths.length && ignorePaths.indexOf(childPath.join('.')) !== -1) {
+      continue;
+    }
+
+    var result = _detectMutations(isImmutable, ignorePaths, trackedProperty.children[key], obj[key], sameRef, childPath);
+
+    if (result.wasMutated) {
+      return result;
+    }
+  }
+
+  return {
+    wasMutated: false
+  };
+}
+/**
+ * Creates a middleware that checks whether any state was mutated in between
+ * dispatches or during a dispatch. If any mutations are detected, an error is
+ * thrown.
+ *
+ * @param options Middleware options.
+ *
+ * @public
+ */
+
+
+function createImmutableStateInvariantMiddleware(options) {
+  if (options === void 0) {
+    options = {};
+  }
+
+  if ("development" === 'production') {
+    return function () {
+      return function (next) {
+        return function (action) {
+          return next(action);
+        };
+      };
+    };
+  }
+
+  var _options = options,
+      _options$isImmutable = _options.isImmutable,
+      isImmutable = _options$isImmutable === void 0 ? isImmutableDefault : _options$isImmutable,
+      ignoredPaths = _options.ignoredPaths,
+      _options$warnAfter = _options.warnAfter,
+      warnAfter = _options$warnAfter === void 0 ? 32 : _options$warnAfter,
+      ignore = _options.ignore; // Alias ignore->ignoredPaths, but prefer ignoredPaths if present
+
+  ignoredPaths = ignoredPaths || ignore;
+  var track = trackForMutations.bind(null, isImmutable, ignoredPaths);
+  return function (_ref) {
+    var getState = _ref.getState;
+    var state = getState();
+    var tracker = track(state);
+    var result;
+    return function (next) {
+      return function (action) {
+        var measureUtils = getTimeMeasureUtils(warnAfter, 'ImmutableStateInvariantMiddleware');
+        measureUtils.measureTime(function () {
+          state = getState();
+          result = tracker.detectMutations(); // Track before potentially not meeting the invariant
+
+          tracker = track(state);
+          !!result.wasMutated ? "development" !== "production" ? invariant(false, "A state mutation was detected between dispatches, in the path '" + (result.path || []).join('.') + "'.  This may cause incorrect behavior. (https://redux.js.org/troubleshooting#never-mutate-reducer-arguments)") : invariant(false) : void 0;
+        });
+        var dispatchedAction = next(action);
+        measureUtils.measureTime(function () {
+          state = getState();
+          result = tracker.detectMutations(); // Track before potentially not meeting the invariant
+
+          tracker = track(state);
+          result.wasMutated && (!!result.wasMutated ? "development" !== "production" ? invariant(false, "A state mutation was detected inside a dispatch, in the path: " + (result.path || []).join('.') + ". Take a look at the reducer(s) handling the action " + stringify(action) + ". (https://redux.js.org/troubleshooting#never-mutate-reducer-arguments)") : invariant(false) : void 0);
+        });
+        measureUtils.warnIfExceeded();
+        return dispatchedAction;
+      };
+    };
+  };
 }
 /**
  * Returns true if the passed value is "plain", i.e. a value that is either
@@ -9499,14 +9175,28 @@ function createSerializableStateInvariantMiddleware(options) {
     options = {};
   }
 
+  if ("development" === 'production') {
+    return function () {
+      return function (next) {
+        return function (action) {
+          return next(action);
+        };
+      };
+    };
+  }
+
   var _options = options,
       _options$isSerializab = _options.isSerializable,
       isSerializable = _options$isSerializab === void 0 ? isPlain : _options$isSerializab,
       getEntries = _options.getEntries,
       _options$ignoredActio = _options.ignoredActions,
       ignoredActions = _options$ignoredActio === void 0 ? [] : _options$ignoredActio,
+      _options$ignoredActio2 = _options.ignoredActionPaths,
+      ignoredActionPaths = _options$ignoredActio2 === void 0 ? ['meta.arg'] : _options$ignoredActio2,
       _options$ignoredPaths = _options.ignoredPaths,
-      ignoredPaths = _options$ignoredPaths === void 0 ? [] : _options$ignoredPaths;
+      ignoredPaths = _options$ignoredPaths === void 0 ? [] : _options$ignoredPaths,
+      _options$warnAfter = _options.warnAfter,
+      warnAfter = _options$warnAfter === void 0 ? 32 : _options$warnAfter;
   return function (storeAPI) {
     return function (next) {
       return function (action) {
@@ -9514,24 +9204,28 @@ function createSerializableStateInvariantMiddleware(options) {
           return next(action);
         }
 
-        var foundActionNonSerializableValue = findNonSerializableValue(action, [], isSerializable, getEntries);
+        var measureUtils = getTimeMeasureUtils(warnAfter, 'SerializableStateInvariantMiddleware');
+        measureUtils.measureTime(function () {
+          var foundActionNonSerializableValue = findNonSerializableValue(action, [], isSerializable, getEntries, ignoredActionPaths);
 
-        if (foundActionNonSerializableValue) {
-          var keyPath = foundActionNonSerializableValue.keyPath,
-              value = foundActionNonSerializableValue.value;
-          console.error("A non-serializable value was detected in an action, in the path: `" + keyPath + "`. Value:", value, '\nTake a look at the logic that dispatched this action: ', action, '\n(See https://redux.js.org/faq/actions#why-should-type-be-a-string-or-at-least-serializable-why-should-my-action-types-be-constants)');
-        }
-
+          if (foundActionNonSerializableValue) {
+            var keyPath = foundActionNonSerializableValue.keyPath,
+                value = foundActionNonSerializableValue.value;
+            console.error("A non-serializable value was detected in an action, in the path: `" + keyPath + "`. Value:", value, '\nTake a look at the logic that dispatched this action: ', action, '\n(See https://redux.js.org/faq/actions#why-should-type-be-a-string-or-at-least-serializable-why-should-my-action-types-be-constants)', '\n(To allow non-serializable values see: https://redux-toolkit.js.org/usage/usage-guide#working-with-non-serializable-data)');
+          }
+        });
         var result = next(action);
-        var state = storeAPI.getState();
-        var foundStateNonSerializableValue = findNonSerializableValue(state, [], isSerializable, getEntries, ignoredPaths);
+        measureUtils.measureTime(function () {
+          var state = storeAPI.getState();
+          var foundStateNonSerializableValue = findNonSerializableValue(state, [], isSerializable, getEntries, ignoredPaths);
 
-        if (foundStateNonSerializableValue) {
-          var _keyPath = foundStateNonSerializableValue.keyPath,
-              _value = foundStateNonSerializableValue.value;
-          console.error("A non-serializable value was detected in the state, in the path: `" + _keyPath + "`. Value:", _value, "\nTake a look at the reducer(s) handling this action type: " + action.type + ".\n(See https://redux.js.org/faq/organizing-state#can-i-put-functions-promises-or-other-non-serializable-items-in-my-store-state)");
-        }
-
+          if (foundStateNonSerializableValue) {
+            var keyPath = foundStateNonSerializableValue.keyPath,
+                value = foundStateNonSerializableValue.value;
+            console.error("A non-serializable value was detected in the state, in the path: `" + keyPath + "`. Value:", value, "\nTake a look at the reducer(s) handling this action type: " + action.type + ".\n(See https://redux.js.org/faq/organizing-state#can-i-put-functions-promises-or-other-non-serializable-items-in-my-store-state)");
+          }
+        });
+        measureUtils.warnIfExceeded();
         return result;
       };
     };
@@ -9540,6 +9234,12 @@ function createSerializableStateInvariantMiddleware(options) {
 
 function isBoolean(x) {
   return typeof x === 'boolean';
+}
+
+function curryGetDefaultMiddleware() {
+  return function curriedGetDefaultMiddleware(options) {
+    return getDefaultMiddleware(options);
+  };
 }
 /**
  * Returns any array containing the default middleware installed by
@@ -9564,7 +9264,7 @@ function getDefaultMiddleware(options) {
       immutableCheck = _options$immutableChe === void 0 ? true : _options$immutableChe,
       _options$serializable = _options.serializableCheck,
       serializableCheck = _options$serializable === void 0 ? true : _options$serializable;
-  var middlewareArray = [];
+  var middlewareArray = new MiddlewareArray();
 
   if (thunk) {
     if (isBoolean(thunk)) {
@@ -9583,7 +9283,7 @@ function getDefaultMiddleware(options) {
         immutableOptions = immutableCheck;
       }
 
-      middlewareArray.unshift((0, _reduxImmutableStateInvariant.default)(immutableOptions));
+      middlewareArray.unshift(createImmutableStateInvariantMiddleware(immutableOptions));
       /* PROD_STOP_REMOVE_UMD */
     }
 
@@ -9612,11 +9312,13 @@ var IS_PRODUCTION = "development" === 'production';
  */
 
 function configureStore(options) {
+  var curriedGetDefaultMiddleware = curryGetDefaultMiddleware();
+
   var _ref = options || {},
       _ref$reducer = _ref.reducer,
       reducer = _ref$reducer === void 0 ? undefined : _ref$reducer,
       _ref$middleware = _ref.middleware,
-      middleware = _ref$middleware === void 0 ? getDefaultMiddleware() : _ref$middleware,
+      middleware = _ref$middleware === void 0 ? curriedGetDefaultMiddleware() : _ref$middleware,
       _ref$devTools = _ref.devTools,
       devTools = _ref$devTools === void 0 ? true : _ref$devTools,
       _ref$preloadedState = _ref.preloadedState,
@@ -9634,12 +9336,12 @@ function configureStore(options) {
     throw new Error('"reducer" is a required argument, and must be a function or an object of functions that can be passed to combineReducers');
   }
 
-  var middlewareEnhancer = _redux.applyMiddleware.apply(void 0, middleware);
+  var middlewareEnhancer = _redux.applyMiddleware.apply(void 0, typeof middleware === 'function' ? middleware(curriedGetDefaultMiddleware) : middleware);
 
   var finalCompose = _redux.compose;
 
   if (devTools) {
-    finalCompose = (0, _reduxDevtoolsExtension.composeWithDevTools)(_extends({
+    finalCompose = composeWithDevTools(_extends({
       // Enable capture of stack traces for dispatched Redux actions
       trace: !IS_PRODUCTION
     }, typeof devTools === 'object' && devTools));
@@ -9694,6 +9396,14 @@ function createAction(type, prepareAction) {
 
   return actionCreator;
 }
+
+function isFSA(action) {
+  return isPlainObject(action) && typeof action.type === 'string' && Object.keys(action).every(isValidKey);
+}
+
+function isValidKey(key) {
+  return ['type', 'payload', 'error', 'meta'].indexOf(key) > -1;
+}
 /**
  * Returns the action type of the actions created by the passed
  * `createAction()`-generated action creator (arbitrary action creators
@@ -9712,8 +9422,25 @@ function getType(actionCreator) {
 
 function executeReducerBuilderCallback(builderCallback) {
   var actionsMap = {};
+  var actionMatchers = [];
+  var defaultCaseReducer;
   var builder = {
     addCase: function addCase(typeOrActionCreator, reducer) {
+      if ("development" !== 'production') {
+        /*
+         to keep the definition by the user in line with actual behavior,
+         we enforce `addCase` to always be called before calling `addMatcher`
+         as matching cases take precedence over matchers
+         */
+        if (actionMatchers.length > 0) {
+          throw new Error('`builder.addCase` should only be called before calling `builder.addMatcher`');
+        }
+
+        if (defaultCaseReducer) {
+          throw new Error('`builder.addCase` should only be called before calling `builder.addDefaultCase`');
+        }
+      }
+
       var type = typeof typeOrActionCreator === 'string' ? typeOrActionCreator : typeOrActionCreator.type;
 
       if (type in actionsMap) {
@@ -9722,26 +9449,101 @@ function executeReducerBuilderCallback(builderCallback) {
 
       actionsMap[type] = reducer;
       return builder;
+    },
+    addMatcher: function addMatcher(matcher, reducer) {
+      if ("development" !== 'production') {
+        if (defaultCaseReducer) {
+          throw new Error('`builder.addMatcher` should only be called before calling `builder.addDefaultCase`');
+        }
+      }
+
+      actionMatchers.push({
+        matcher: matcher,
+        reducer: reducer
+      });
+      return builder;
+    },
+    addDefaultCase: function addDefaultCase(reducer) {
+      if ("development" !== 'production') {
+        if (defaultCaseReducer) {
+          throw new Error('`builder.addDefaultCase` can only be called once');
+        }
+      }
+
+      defaultCaseReducer = reducer;
+      return builder;
     }
   };
   builderCallback(builder);
-  return actionsMap;
+  return [actionsMap, actionMatchers, defaultCaseReducer];
 }
 
-function createReducer(initialState, mapOrBuilderCallback) {
-  var actionsMap = typeof mapOrBuilderCallback === 'function' ? executeReducerBuilderCallback(mapOrBuilderCallback) : mapOrBuilderCallback;
+function createReducer(initialState, mapOrBuilderCallback, actionMatchers, defaultCaseReducer) {
+  if (actionMatchers === void 0) {
+    actionMatchers = [];
+  }
+
+  var _ref = typeof mapOrBuilderCallback === 'function' ? executeReducerBuilderCallback(mapOrBuilderCallback) : [mapOrBuilderCallback, actionMatchers, defaultCaseReducer],
+      actionsMap = _ref[0],
+      finalActionMatchers = _ref[1],
+      finalDefaultCaseReducer = _ref[2];
+
   return function (state, action) {
     if (state === void 0) {
       state = initialState;
-    } // @ts-ignore createNextState() produces an Immutable<Draft<S>> rather
-    // than an Immutable<S>, and TypeScript cannot find out how to reconcile
-    // these two types.
+    }
 
+    var caseReducers = [actionsMap[action.type]].concat(finalActionMatchers.filter(function (_ref2) {
+      var matcher = _ref2.matcher;
+      return matcher(action);
+    }).map(function (_ref3) {
+      var reducer = _ref3.reducer;
+      return reducer;
+    }));
 
-    return (0, _immer.default)(state, function (draft) {
-      var caseReducer = actionsMap[action.type];
-      return caseReducer ? caseReducer(draft, action) : undefined;
-    });
+    if (caseReducers.filter(function (cr) {
+      return !!cr;
+    }).length === 0) {
+      caseReducers = [finalDefaultCaseReducer];
+    }
+
+    return caseReducers.reduce(function (previousState, caseReducer) {
+      if (caseReducer) {
+        if ((0, _immer.isDraft)(previousState)) {
+          // If it's already a draft, we must already be inside a `createNextState` call,
+          // likely because this is being wrapped in `createReducer`, `createSlice`, or nested
+          // inside an existing draft. It's safe to just pass the draft to the mutator.
+          var draft = previousState; // We can assume this is already a draft
+
+          var result = caseReducer(draft, action);
+
+          if (typeof result === 'undefined') {
+            return previousState;
+          }
+
+          return result;
+        } else if (!(0, _immer.isDraftable)(previousState)) {
+          // If state is not draftable (ex: a primitive, such as 0), we want to directly
+          // return the caseReducer func and not wrap it with produce.
+          var _result = caseReducer(previousState, action);
+
+          if (typeof _result === 'undefined') {
+            throw Error('A case reducer on a non-draftable value must not return undefined');
+          }
+
+          return _result;
+        } else {
+          // @ts-ignore createNextState() produces an Immutable<Draft<S>> rather
+          // than an Immutable<S>, and TypeScript cannot find out how to reconcile
+          // these two types.
+          return (0, _immer.default)(previousState, function (draft) {
+            return caseReducer(draft, action);
+          });
+        }
+      }
+
+      return previousState;
+    }, state);
   };
 }
 
@@ -9769,7 +9571,15 @@ function createSlice(options) {
   }
 
   var reducers = options.reducers || {};
-  var extraReducers = typeof options.extraReducers === 'undefined' ? {} : typeof options.extraReducers === 'function' ? executeReducerBuilderCallback(options.extraReducers) : options.extraReducers;
+
+  var _ref = typeof options.extraReducers === 'undefined' ? [] : typeof options.extraReducers === 'function' ? executeReducerBuilderCallback(options.extraReducers) : [options.extraReducers],
+      _ref$ = _ref[0],
+      extraReducers = _ref$ === void 0 ? {} : _ref$,
+      _ref$2 = _ref[1],
+      actionMatchers = _ref$2 === void 0 ? [] : _ref$2,
+      _ref$3 = _ref[2],
+      defaultCaseReducer = _ref$3 === void 0 ? undefined : _ref$3;
+
   var reducerNames = Object.keys(reducers);
   var sliceCaseReducersByName = {};
   var sliceCaseReducersByType = {};
@@ -9794,7 +9604,7 @@ function createSlice(options) {
 
   var finalCaseReducers = _extends({}, extraReducers, {}, sliceCaseReducersByType);
 
-  var reducer = createReducer(initialState, finalCaseReducers);
+  var reducer = createReducer(initialState, finalCaseReducers, actionMatchers, defaultCaseReducer);
   return {
     name: name,
     reducer: reducer,
@@ -9802,7 +9612,755 @@ function createSlice(options) {
     caseReducers: sliceCaseReducersByName
   };
 }
-},{"redux":"../../node_modules/redux/es/redux.js","immer":"../../node_modules/immer/dist/immer.module.js","reselect":"../../node_modules/reselect/es/index.js","redux-devtools-extension":"../../node_modules/redux-devtools-extension/index.js","redux-thunk":"../../node_modules/redux-thunk/es/index.js","redux-immutable-state-invariant":"../../node_modules/redux-immutable-state-invariant/dist/index.js"}],"store/cart.js":[function(require,module,exports) {
+
+function getInitialEntityState() {
+  return {
+    ids: [],
+    entities: {}
+  };
+}
+
+function createInitialStateFactory() {
+  function getInitialState(additionalState) {
+    if (additionalState === void 0) {
+      additionalState = {};
+    }
+
+    return Object.assign(getInitialEntityState(), additionalState);
+  }
+
+  return {
+    getInitialState: getInitialState
+  };
+}
+
+function createSelectorsFactory() {
+  function getSelectors(selectState) {
+    var selectIds = function selectIds(state) {
+      return state.ids;
+    };
+
+    var selectEntities = function selectEntities(state) {
+      return state.entities;
+    };
+
+    var selectAll = (0, _reselect.createSelector)(selectIds, selectEntities, function (ids, entities) {
+      return ids.map(function (id) {
+        return entities[id];
+      });
+    });
+
+    var selectId = function selectId(_, id) {
+      return id;
+    };
+
+    var selectById = function selectById(entities, id) {
+      return entities[id];
+    };
+
+    var selectTotal = (0, _reselect.createSelector)(selectIds, function (ids) {
+      return ids.length;
+    });
+
+    if (!selectState) {
+      return {
+        selectIds: selectIds,
+        selectEntities: selectEntities,
+        selectAll: selectAll,
+        selectTotal: selectTotal,
+        selectById: (0, _reselect.createSelector)(selectEntities, selectId, selectById)
+      };
+    }
+
+    var selectGlobalizedEntities = (0, _reselect.createSelector)(selectState, selectEntities);
+    return {
+      selectIds: (0, _reselect.createSelector)(selectState, selectIds),
+      selectEntities: selectGlobalizedEntities,
+      selectAll: (0, _reselect.createSelector)(selectState, selectAll),
+      selectTotal: (0, _reselect.createSelector)(selectState, selectTotal),
+      selectById: (0, _reselect.createSelector)(selectGlobalizedEntities, selectId, selectById)
+    };
+  }
+
+  return {
+    getSelectors: getSelectors
+  };
+}
+
+function createSingleArgumentStateOperator(mutator) {
+  var operator = createStateOperator(function (_, state) {
+    return mutator(state);
+  });
+  return function operation(state) {
+    return operator(state, undefined);
+  };
+}
+
+function createStateOperator(mutator) {
+  return function operation(state, arg) {
+    function isPayloadActionArgument(arg) {
+      return isFSA(arg);
+    }
+
+    var runMutator = function runMutator(draft) {
+      if (isPayloadActionArgument(arg)) {
+        mutator(arg.payload, draft);
+      } else {
+        mutator(arg, draft);
+      }
+    };
+
+    if ((0, _immer.isDraft)(state)) {
+      // we must already be inside a `createNextState` call, likely because
+      // this is being wrapped in `createReducer` or `createSlice`.
+      // It's safe to just pass the draft to the mutator.
+      runMutator(state); // since it's a draft, we'll just return it
+
+      return state;
+    } else {
+      // @ts-ignore createNextState() produces an Immutable<Draft<S>> rather
+      // than an Immutable<S>, and TypeScript cannot find out how to reconcile
+      // these two types.
+      return (0, _immer.default)(state, runMutator);
+    }
+  };
+}
+
+function selectIdValue(entity, selectId) {
+  var key = selectId(entity);
+
+  if ("development" !== 'production' && key === undefined) {
+    console.warn('The entity passed to the `selectId` implementation returned undefined.', 'You should probably provide your own `selectId` implementation.', 'The entity that was passed:', entity, 'The `selectId` implementation:', selectId.toString());
+  }
+
+  return key;
+}
+
+function createUnsortedStateAdapter(selectId) {
+  function addOneMutably(entity, state) {
+    var key = selectIdValue(entity, selectId);
+
+    if (key in state.entities) {
+      return;
+    }
+
+    state.ids.push(key);
+    state.entities[key] = entity;
+  }
+
+  function addManyMutably(entities, state) {
+    if (!Array.isArray(entities)) {
+      entities = Object.values(entities);
+    }
+
+    for (var _iterator = entities, _isArray = Array.isArray(_iterator), _i = 0, _iterator = _isArray ? _iterator : _iterator[Symbol.iterator]();;) {
+      var _ref;
+
+      if (_isArray) {
+        if (_i >= _iterator.length) break;
+        _ref = _iterator[_i++];
+      } else {
+        _i = _iterator.next();
+        if (_i.done) break;
+        _ref = _i.value;
+      }
+
+      var entity = _ref;
+      addOneMutably(entity, state);
+    }
+  }
+
+  function setAllMutably(entities, state) {
+    if (!Array.isArray(entities)) {
+      entities = Object.values(entities);
+    }
+
+    state.ids = [];
+    state.entities = {};
+    addManyMutably(entities, state);
+  }
+
+  function removeOneMutably(key, state) {
+    return removeManyMutably([key], state);
+  }
+
+  function removeManyMutably(keys, state) {
+    var didMutate = false;
+    keys.forEach(function (key) {
+      if (key in state.entities) {
+        delete state.entities[key];
+        didMutate = true;
+      }
+    });
+
+    if (didMutate) {
+      state.ids = state.ids.filter(function (id) {
+        return id in state.entities;
+      });
+    }
+  }
+
+  function removeAllMutably(state) {
+    Object.assign(state, {
+      ids: [],
+      entities: {}
+    });
+  }
+
+  function takeNewKey(keys, update, state) {
+    var original = state.entities[update.id];
+    var updated = Object.assign({}, original, update.changes);
+    var newKey = selectIdValue(updated, selectId);
+    var hasNewKey = newKey !== update.id;
+
+    if (hasNewKey) {
+      keys[update.id] = newKey;
+      delete state.entities[update.id];
+    }
+
+    state.entities[newKey] = updated;
+    return hasNewKey;
+  }
+
+  function updateOneMutably(update, state) {
+    return updateManyMutably([update], state);
+  }
+
+  function updateManyMutably(updates, state) {
+    var newKeys = {};
+    var updatesPerEntity = {};
+    updates.forEach(function (update) {
+      // Only apply updates to entities that currently exist
+      if (update.id in state.entities) {
+        // If there are multiple updates to one entity, merge them together
+        updatesPerEntity[update.id] = {
+          id: update.id,
+          // Spreads ignore falsy values, so this works even if there isn't
+          // an existing update already at this key
+          changes: _extends({}, updatesPerEntity[update.id] ? updatesPerEntity[update.id].changes : null, {}, update.changes)
+        };
+      }
+    });
+    updates = Object.values(updatesPerEntity);
+    var didMutateEntities = updates.length > 0;
+
+    if (didMutateEntities) {
+      var didMutateIds = updates.filter(function (update) {
+        return takeNewKey(newKeys, update, state);
+      }).length > 0;
+
+      if (didMutateIds) {
+        state.ids = state.ids.map(function (id) {
+          return newKeys[id] || id;
+        });
+      }
+    }
+  }
+
+  function upsertOneMutably(entity, state) {
+    return upsertManyMutably([entity], state);
+  }
+
+  function upsertManyMutably(entities, state) {
+    if (!Array.isArray(entities)) {
+      entities = Object.values(entities);
+    }
+
+    var added = [];
+    var updated = [];
+
+    for (var _iterator2 = entities, _isArray2 = Array.isArray(_iterator2), _i2 = 0, _iterator2 = _isArray2 ? _iterator2 : _iterator2[Symbol.iterator]();;) {
+      var _ref2;
+
+      if (_isArray2) {
+        if (_i2 >= _iterator2.length) break;
+        _ref2 = _iterator2[_i2++];
+      } else {
+        _i2 = _iterator2.next();
+        if (_i2.done) break;
+        _ref2 = _i2.value;
+      }
+
+      var entity = _ref2;
+      var id = selectIdValue(entity, selectId);
+
+      if (id in state.entities) {
+        updated.push({
+          id: id,
+          changes: entity
+        });
+      } else {
+        added.push(entity);
+      }
+    }
+
+    updateManyMutably(updated, state);
+    addManyMutably(added, state);
+  }
+
+  return {
+    removeAll: createSingleArgumentStateOperator(removeAllMutably),
+    addOne: createStateOperator(addOneMutably),
+    addMany: createStateOperator(addManyMutably),
+    setAll: createStateOperator(setAllMutably),
+    updateOne: createStateOperator(updateOneMutably),
+    updateMany: createStateOperator(updateManyMutably),
+    upsertOne: createStateOperator(upsertOneMutably),
+    upsertMany: createStateOperator(upsertManyMutably),
+    removeOne: createStateOperator(removeOneMutably),
+    removeMany: createStateOperator(removeManyMutably)
+  };
+}
+
+function createSortedStateAdapter(selectId, sort) {
+  var _createUnsortedStateA = createUnsortedStateAdapter(selectId),
+      removeOne = _createUnsortedStateA.removeOne,
+      removeMany = _createUnsortedStateA.removeMany,
+      removeAll = _createUnsortedStateA.removeAll;
+
+  function addOneMutably(entity, state) {
+    return addManyMutably([entity], state);
+  }
+
+  function addManyMutably(newModels, state) {
+    if (!Array.isArray(newModels)) {
+      newModels = Object.values(newModels);
+    }
+
+    var models = newModels.filter(function (model) {
+      return !(selectIdValue(model, selectId) in state.entities);
+    });
+
+    if (models.length !== 0) {
+      merge(models, state);
+    }
+  }
+
+  function setAllMutably(models, state) {
+    if (!Array.isArray(models)) {
+      models = Object.values(models);
+    }
+
+    state.entities = {};
+    state.ids = [];
+    addManyMutably(models, state);
+  }
+
+  function updateOneMutably(update, state) {
+    return updateManyMutably([update], state);
+  }
+
+  function takeUpdatedModel(models, update, state) {
+    if (!(update.id in state.entities)) {
+      return false;
+    }
+
+    var original = state.entities[update.id];
+    var updated = Object.assign({}, original, update.changes);
+    var newKey = selectIdValue(updated, selectId);
+    delete state.entities[update.id];
+    models.push(updated);
+    return newKey !== update.id;
+  }
+
+  function updateManyMutably(updates, state) {
+    var models = [];
+    updates.forEach(function (update) {
+      return takeUpdatedModel(models, update, state);
+    });
+
+    if (models.length !== 0) {
+      merge(models, state);
+    }
+  }
+
+  function upsertOneMutably(entity, state) {
+    return upsertManyMutably([entity], state);
+  }
+
+  function upsertManyMutably(entities, state) {
+    if (!Array.isArray(entities)) {
+      entities = Object.values(entities);
+    }
+
+    var added = [];
+    var updated = [];
+
+    for (var _iterator = entities, _isArray = Array.isArray(_iterator), _i = 0, _iterator = _isArray ? _iterator : _iterator[Symbol.iterator]();;) {
+      var _ref;
+
+      if (_isArray) {
+        if (_i >= _iterator.length) break;
+        _ref = _iterator[_i++];
+      } else {
+        _i = _iterator.next();
+        if (_i.done) break;
+        _ref = _i.value;
+      }
+
+      var entity = _ref;
+      var id = selectIdValue(entity, selectId);
+
+      if (id in state.entities) {
+        updated.push({
+          id: id,
+          changes: entity
+        });
+      } else {
+        added.push(entity);
+      }
+    }
+
+    updateManyMutably(updated, state);
+    addManyMutably(added, state);
+  }
+
+  function areArraysEqual(a, b) {
+    if (a.length !== b.length) {
+      return false;
+    }
+
+    for (var i = 0; i < a.length && i < b.length; i++) {
+      if (a[i] === b[i]) {
+        continue;
+      }
+
+      return false;
+    }
+
+    return true;
+  }
+
+  function merge(models, state) {
+    models.sort(sort); // Insert/overwrite all new/updated
+
+    models.forEach(function (model) {
+      state.entities[selectId(model)] = model;
+    });
+    var allEntities = Object.values(state.entities);
+    allEntities.sort(sort);
+    var newSortedIds = allEntities.map(selectId);
+    var ids = state.ids;
+
+    if (!areArraysEqual(ids, newSortedIds)) {
+      state.ids = newSortedIds;
+    }
+  }
+
+  return {
+    removeOne: removeOne,
+    removeMany: removeMany,
+    removeAll: removeAll,
+    addOne: createStateOperator(addOneMutably),
+    updateOne: createStateOperator(updateOneMutably),
+    upsertOne: createStateOperator(upsertOneMutably),
+    setAll: createStateOperator(setAllMutably),
+    addMany: createStateOperator(addManyMutably),
+    updateMany: createStateOperator(updateManyMutably),
+    upsertMany: createStateOperator(upsertManyMutably)
+  };
+}
+/**
+ *
+ * @param options
+ *
+ * @public
+ */
+
+
+function createEntityAdapter(options) {
+  if (options === void 0) {
+    options = {};
+  }
+
+  var _sortComparer$selectI = _extends({
+    sortComparer: false,
+    selectId: function selectId(instance) {
+      return instance.id;
+    }
+  }, options),
+      selectId = _sortComparer$selectI.selectId,
+      sortComparer = _sortComparer$selectI.sortComparer;
+
+  var stateFactory = createInitialStateFactory();
+  var selectorsFactory = createSelectorsFactory();
+  var stateAdapter = sortComparer ? createSortedStateAdapter(selectId, sortComparer) : createUnsortedStateAdapter(selectId);
+  return _extends({
+    selectId: selectId,
+    sortComparer: sortComparer
+  }, stateFactory, {}, selectorsFactory, {}, stateAdapter);
+} // A type of promise-like that resolves synchronously and supports only one observer
+
+
+const _iteratorSymbol = /*#__PURE__*/typeof Symbol !== "undefined" ? Symbol.iterator || (Symbol.iterator = Symbol("Symbol.iterator")) : "@@iterator";
+
+const _asyncIteratorSymbol = /*#__PURE__*/typeof Symbol !== "undefined" ? Symbol.asyncIterator || (Symbol.asyncIterator = Symbol("Symbol.asyncIterator")) : "@@asyncIterator"; // Asynchronously call a function and send errors to recovery continuation
+
+
+function _catch(body, recover) {
+  try {
+    var result = body();
+  } catch (e) {
+    return recover(e);
+  }
+
+  if (result && result.then) {
+    return result.then(void 0, recover);
+  }
+
+  return result;
+} // Borrowed from https://github.com/ai/nanoid/blob/3.0.2/non-secure/index.js
+// This alphabet uses `A-Za-z0-9_-` symbols. A genetic algorithm helped
+// optimize the gzip compression for this alphabet.
+
+
+var urlAlphabet = 'ModuleSymbhasOwnPr-0123456789ABCDEFGHNRVfgctiUvz_KqYTJkLxpZXIjQW';
+/**
+ *
+ * @public
+ */
+
+var nanoid = function nanoid(size) {
+  if (size === void 0) {
+    size = 21;
+  }
+
+  var id = ''; // A compact alternative for `for (var i = 0; i < step; i++)`.
+
+  var i = size;
+
+  while (i--) {
+    // `| 0` is more compact and faster than `Math.floor()`.
+    id += urlAlphabet[Math.random() * 64 | 0];
+  }
+
+  return id;
+};
+
+exports.nanoid = nanoid;
+var commonProperties = ['name', 'message', 'stack', 'code'];
+
+var RejectWithValue = function RejectWithValue(value) {
+  this.value = value;
+}; // Reworked from https://github.com/sindresorhus/serialize-error
+
+
+var miniSerializeError = function miniSerializeError(value) {
+  if (typeof value === 'object' && value !== null) {
+    var simpleError = {};
+
+    for (var _iterator = commonProperties, _isArray = Array.isArray(_iterator), _i = 0, _iterator = _isArray ? _iterator : _iterator[Symbol.iterator]();;) {
+      var _ref;
+
+      if (_isArray) {
+        if (_i >= _iterator.length) break;
+        _ref = _iterator[_i++];
+      } else {
+        _i = _iterator.next();
+        if (_i.done) break;
+        _ref = _i.value;
+      }
+
+      var property = _ref;
+
+      if (typeof value[property] === 'string') {
+        simpleError[property] = value[property];
+      }
+    }
+
+    return simpleError;
+  }
+
+  return {
+    message: String(value)
+  };
+};
+/**
+ *
+ * @param typePrefix
+ * @param payloadCreator
+ * @param options
+ *
+ * @public
+ */
+
+
+function createAsyncThunk(typePrefix, payloadCreator, options) {
+  var fulfilled = createAction(typePrefix + '/fulfilled', function (result, requestId, arg) {
+    return {
+      payload: result,
+      meta: {
+        arg: arg,
+        requestId: requestId
+      }
+    };
+  });
+  var pending = createAction(typePrefix + '/pending', function (requestId, arg) {
+    return {
+      payload: undefined,
+      meta: {
+        arg: arg,
+        requestId: requestId
+      }
+    };
+  });
+  var rejected = createAction(typePrefix + '/rejected', function (error, requestId, arg, payload) {
+    var aborted = !!error && error.name === 'AbortError';
+    var condition = !!error && error.name === 'ConditionError';
+    return {
+      payload: payload,
+      error: miniSerializeError(error || 'Rejected'),
+      meta: {
+        arg: arg,
+        requestId: requestId,
+        aborted: aborted,
+        condition: condition
+      }
+    };
+  });
+  var displayedWarning = false;
+  var AC = typeof AbortController !== 'undefined' ? AbortController : /*#__PURE__*/function () {
+    function _class() {
+      this.signal = {
+        aborted: false,
+        addEventListener: function addEventListener() {},
+        dispatchEvent: function dispatchEvent() {
+          return false;
+        },
+        onabort: function onabort() {},
+        removeEventListener: function removeEventListener() {}
+      };
+    }
+
+    var _proto = _class.prototype;
+
+    _proto.abort = function abort() {
+      if ("development" !== 'production') {
+        if (!displayedWarning) {
+          displayedWarning = true;
+          console.info("This platform does not implement AbortController. \nIf you want to use the AbortController to react to `abort` events, please consider importing a polyfill like 'abortcontroller-polyfill/dist/abortcontroller-polyfill-only'.");
+        }
+      }
+    };
+
+    return _class;
+  }();
+
+  function actionCreator(arg) {
+    return function (dispatch, getState, extra) {
+      var requestId = nanoid();
+      var abortController = new AC();
+      var abortReason;
+      var abortedPromise = new Promise(function (_, reject) {
+        return abortController.signal.addEventListener('abort', function () {
+          return reject({
+            name: 'AbortError',
+            message: abortReason || 'Aborted'
+          });
+        });
+      });
+      var started = false;
+
+      function abort(reason) {
+        if (started) {
+          abortReason = reason;
+          abortController.abort();
+        }
+      }
+
+      var promise = function () {
+        try {
+          var _temp3 = function _temp3(_result) {
+            if (_exit2) return _result; // We dispatch the result action _after_ the catch, to avoid having any errors
+            // here get swallowed by the try/catch block,
+            // per https://twitter.com/dan_abramov/status/770914221638942720
+            // and https://redux-toolkit.js.org/tutorials/advanced-tutorial#async-error-handling-logic-in-thunks
+
+            var skipDispatch = options && !options.dispatchConditionRejection && rejected.match(finalAction) && finalAction.meta.condition;
+
+            if (!skipDispatch) {
+              dispatch(finalAction);
+            }
+
+            return finalAction;
+          };
+
+          var _exit2 = false;
+          var finalAction;
+
+          var _temp4 = _catch(function () {
+            if (options && options.condition && options.condition(arg, {
+              getState: getState,
+              extra: extra
+            }) === false) {
+              // eslint-disable-next-line no-throw-literal
+              throw {
+                name: 'ConditionError',
+                message: 'Aborted due to condition callback returning false.'
+              };
+            }
+
+            started = true;
+            dispatch(pending(requestId, arg));
+            return Promise.resolve(Promise.race([abortedPromise, Promise.resolve(payloadCreator(arg, {
+              dispatch: dispatch,
+              getState: getState,
+              extra: extra,
+              requestId: requestId,
+              signal: abortController.signal,
+              rejectWithValue: function rejectWithValue(value) {
+                return new RejectWithValue(value);
+              }
+            })).then(function (result) {
+              if (result instanceof RejectWithValue) {
+                return rejected(null, requestId, arg, result.value);
+              }
+
+              return fulfilled(result, requestId, arg);
+            })])).then(function (_Promise$race) {
+              finalAction = _Promise$race;
+            });
+          }, function (err) {
+            finalAction = rejected(err, requestId, arg);
+          });
+
+          return Promise.resolve(_temp4 && _temp4.then ? _temp4.then(_temp3) : _temp3(_temp4));
+        } catch (e) {
+          return Promise.reject(e);
+        }
+      }();
+
+      return Object.assign(promise, {
+        abort: abort
+      });
+    };
+  }
+
+  return Object.assign(actionCreator, {
+    pending: pending,
+    rejected: rejected,
+    fulfilled: fulfilled,
+    typePrefix: typePrefix
+  });
+}
+/**
+ * @public
+ */
+
+
+function unwrapResult(returned) {
+  if ('error' in returned) {
+    throw returned.error;
+  }
+
+  return returned.payload;
+} // we assume RTK will be used with React Native and other Proxy-less
+// environments.  In addition, that's how Immer 4 behaved, and since
+// we want to ship this in an RTK minor, we should keep the same behavior.
+
+
+(0, _immer.enableES5)();
+},{"immer":"../../node_modules/immer/dist/immer.esm.js","redux":"../../node_modules/redux/es/redux.js","reselect":"../../node_modules/reselect/es/index.js","redux-thunk":"../../node_modules/redux-thunk/es/index.js"}],"store/cart.js":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9830,7 +10388,7 @@ var cart = (0, _toolkit.createSlice)({
       if (existedIndex !== -1) {
         state[existedIndex].quantity++;
       } else {
-        state.push(_objectSpread({}, action.payload, {
+        state.push(_objectSpread(_objectSpread({}, action.payload), {}, {
           quantity: 1
         }));
       }
@@ -10041,6 +10599,21 @@ function isObject(val) {
 }
 
 /**
+ * Determine if a value is a plain Object
+ *
+ * @param {Object} val The value to test
+ * @return {boolean} True if value is a plain Object, otherwise false
+ */
+function isPlainObject(val) {
+  if (toString.call(val) !== '[object Object]') {
+    return false;
+  }
+
+  var prototype = Object.getPrototypeOf(val);
+  return prototype === null || prototype === Object.prototype;
+}
+
+/**
  * Determine if a value is a Date
  *
  * @param {Object} val The value to test
@@ -10196,34 +10769,12 @@ function forEach(obj, fn) {
 function merge(/* obj1, obj2, obj3, ... */) {
   var result = {};
   function assignValue(val, key) {
-    if (typeof result[key] === 'object' && typeof val === 'object') {
+    if (isPlainObject(result[key]) && isPlainObject(val)) {
       result[key] = merge(result[key], val);
-    } else {
-      result[key] = val;
-    }
-  }
-
-  for (var i = 0, l = arguments.length; i < l; i++) {
-    forEach(arguments[i], assignValue);
-  }
-  return result;
-}
-
-/**
- * Function equal to merge with the difference being that no reference
- * to original objects is kept.
- *
- * @see merge
- * @param {Object} obj1 Object to merge
- * @returns {Object} Result of all merge properties
- */
-function deepMerge(/* obj1, obj2, obj3, ... */) {
-  var result = {};
-  function assignValue(val, key) {
-    if (typeof result[key] === 'object' && typeof val === 'object') {
-      result[key] = deepMerge(result[key], val);
-    } else if (typeof val === 'object') {
-      result[key] = deepMerge({}, val);
+    } else if (isPlainObject(val)) {
+      result[key] = merge({}, val);
+    } else if (isArray(val)) {
+      result[key] = val.slice();
     } else {
       result[key] = val;
     }
@@ -10254,6 +10805,19 @@ function extend(a, b, thisArg) {
   return a;
 }
 
+/**
+ * Remove byte order marker. This catches EF BB BF (the UTF-8 BOM)
+ *
+ * @param {string} content with BOM
+ * @return {string} content value without BOM
+ */
+function stripBOM(content) {
+  if (content.charCodeAt(0) === 0xFEFF) {
+    content = content.slice(1);
+  }
+  return content;
+}
+
 module.exports = {
   isArray: isArray,
   isArrayBuffer: isArrayBuffer,
@@ -10263,6 +10827,7 @@ module.exports = {
   isString: isString,
   isNumber: isNumber,
   isObject: isObject,
+  isPlainObject: isPlainObject,
   isUndefined: isUndefined,
   isDate: isDate,
   isFile: isFile,
@@ -10273,9 +10838,9 @@ module.exports = {
   isStandardBrowserEnv: isStandardBrowserEnv,
   forEach: forEach,
   merge: merge,
-  deepMerge: deepMerge,
   extend: extend,
-  trim: trim
+  trim: trim,
+  stripBOM: stripBOM
 };
 
 },{"./helpers/bind":"../../node_modules/axios/lib/helpers/bind.js"}],"../../node_modules/axios/lib/helpers/buildURL.js":[function(require,module,exports) {
@@ -10285,7 +10850,6 @@ var utils = require('./../utils');
 
 function encode(val) {
   return encodeURIComponent(val).
-    replace(/%40/gi, '@').
     replace(/%3A/gi, ':').
     replace(/%24/g, '$').
     replace(/%2C/gi, ',').
@@ -10471,7 +11035,7 @@ module.exports = function enhanceError(error, config, code, request, response) {
   error.response = response;
   error.isAxiosError = true;
 
-  error.toJSON = function() {
+  error.toJSON = function toJSON() {
     return {
       // Standard
       message: this.message,
@@ -10526,7 +11090,7 @@ var createError = require('./createError');
  */
 module.exports = function settle(resolve, reject, response) {
   var validateStatus = response.config.validateStatus;
-  if (!validateStatus || validateStatus(response.status)) {
+  if (!response.status || !validateStatus || validateStatus(response.status)) {
     resolve(response);
   } else {
     reject(createError(
@@ -10539,7 +11103,62 @@ module.exports = function settle(resolve, reject, response) {
   }
 };
 
-},{"./createError":"../../node_modules/axios/lib/core/createError.js"}],"../../node_modules/axios/lib/helpers/isAbsoluteURL.js":[function(require,module,exports) {
+},{"./createError":"../../node_modules/axios/lib/core/createError.js"}],"../../node_modules/axios/lib/helpers/cookies.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+
+module.exports = (
+  utils.isStandardBrowserEnv() ?
+
+  // Standard browser envs support document.cookie
+    (function standardBrowserEnv() {
+      return {
+        write: function write(name, value, expires, path, domain, secure) {
+          var cookie = [];
+          cookie.push(name + '=' + encodeURIComponent(value));
+
+          if (utils.isNumber(expires)) {
+            cookie.push('expires=' + new Date(expires).toGMTString());
+          }
+
+          if (utils.isString(path)) {
+            cookie.push('path=' + path);
+          }
+
+          if (utils.isString(domain)) {
+            cookie.push('domain=' + domain);
+          }
+
+          if (secure === true) {
+            cookie.push('secure');
+          }
+
+          document.cookie = cookie.join('; ');
+        },
+
+        read: function read(name) {
+          var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+          return (match ? decodeURIComponent(match[3]) : null);
+        },
+
+        remove: function remove(name) {
+          this.write(name, '', Date.now() - 86400000);
+        }
+      };
+    })() :
+
+  // Non standard browser env (web workers, react-native) lack needed support.
+    (function nonStandardBrowserEnv() {
+      return {
+        write: function write() {},
+        read: function read() { return null; },
+        remove: function remove() {}
+      };
+    })()
+);
+
+},{"./../utils":"../../node_modules/axios/lib/utils.js"}],"../../node_modules/axios/lib/helpers/isAbsoluteURL.js":[function(require,module,exports) {
 'use strict';
 
 /**
@@ -10718,66 +11337,12 @@ module.exports = (
     })()
 );
 
-},{"./../utils":"../../node_modules/axios/lib/utils.js"}],"../../node_modules/axios/lib/helpers/cookies.js":[function(require,module,exports) {
-'use strict';
-
-var utils = require('./../utils');
-
-module.exports = (
-  utils.isStandardBrowserEnv() ?
-
-  // Standard browser envs support document.cookie
-    (function standardBrowserEnv() {
-      return {
-        write: function write(name, value, expires, path, domain, secure) {
-          var cookie = [];
-          cookie.push(name + '=' + encodeURIComponent(value));
-
-          if (utils.isNumber(expires)) {
-            cookie.push('expires=' + new Date(expires).toGMTString());
-          }
-
-          if (utils.isString(path)) {
-            cookie.push('path=' + path);
-          }
-
-          if (utils.isString(domain)) {
-            cookie.push('domain=' + domain);
-          }
-
-          if (secure === true) {
-            cookie.push('secure');
-          }
-
-          document.cookie = cookie.join('; ');
-        },
-
-        read: function read(name) {
-          var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-          return (match ? decodeURIComponent(match[3]) : null);
-        },
-
-        remove: function remove(name) {
-          this.write(name, '', Date.now() - 86400000);
-        }
-      };
-    })() :
-
-  // Non standard browser env (web workers, react-native) lack needed support.
-    (function nonStandardBrowserEnv() {
-      return {
-        write: function write() {},
-        read: function read() { return null; },
-        remove: function remove() {}
-      };
-    })()
-);
-
 },{"./../utils":"../../node_modules/axios/lib/utils.js"}],"../../node_modules/axios/lib/adapters/xhr.js":[function(require,module,exports) {
 'use strict';
 
 var utils = require('./../utils');
 var settle = require('./../core/settle');
+var cookies = require('./../helpers/cookies');
 var buildURL = require('./../helpers/buildURL');
 var buildFullPath = require('../core/buildFullPath');
 var parseHeaders = require('./../helpers/parseHeaders');
@@ -10798,7 +11363,7 @@ module.exports = function xhrAdapter(config) {
     // HTTP basic authentication
     if (config.auth) {
       var username = config.auth.username || '';
-      var password = config.auth.password || '';
+      var password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
       requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
     }
 
@@ -10879,8 +11444,6 @@ module.exports = function xhrAdapter(config) {
     // This is only done if running in a standard browser environment.
     // Specifically not if we're in a web worker, or react-native.
     if (utils.isStandardBrowserEnv()) {
-      var cookies = require('./../helpers/cookies');
-
       // Add xsrf header
       var xsrfValue = (config.withCredentials || isURLSameOrigin(fullPath)) && config.xsrfCookieName ?
         cookies.read(config.xsrfCookieName) :
@@ -10946,7 +11509,7 @@ module.exports = function xhrAdapter(config) {
       });
     }
 
-    if (requestData === undefined) {
+    if (!requestData) {
       requestData = null;
     }
 
@@ -10955,7 +11518,216 @@ module.exports = function xhrAdapter(config) {
   });
 };
 
-},{"./../utils":"../../node_modules/axios/lib/utils.js","./../core/settle":"../../node_modules/axios/lib/core/settle.js","./../helpers/buildURL":"../../node_modules/axios/lib/helpers/buildURL.js","../core/buildFullPath":"../../node_modules/axios/lib/core/buildFullPath.js","./../helpers/parseHeaders":"../../node_modules/axios/lib/helpers/parseHeaders.js","./../helpers/isURLSameOrigin":"../../node_modules/axios/lib/helpers/isURLSameOrigin.js","../core/createError":"../../node_modules/axios/lib/core/createError.js","./../helpers/cookies":"../../node_modules/axios/lib/helpers/cookies.js"}],"../../node_modules/axios/lib/defaults.js":[function(require,module,exports) {
+},{"./../utils":"../../node_modules/axios/lib/utils.js","./../core/settle":"../../node_modules/axios/lib/core/settle.js","./../helpers/cookies":"../../node_modules/axios/lib/helpers/cookies.js","./../helpers/buildURL":"../../node_modules/axios/lib/helpers/buildURL.js","../core/buildFullPath":"../../node_modules/axios/lib/core/buildFullPath.js","./../helpers/parseHeaders":"../../node_modules/axios/lib/helpers/parseHeaders.js","./../helpers/isURLSameOrigin":"../../node_modules/axios/lib/helpers/isURLSameOrigin.js","../core/createError":"../../node_modules/axios/lib/core/createError.js"}],"../../node_modules/process/browser.js":[function(require,module,exports) {
+
+// shim for using process in browser
+var process = module.exports = {}; // cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+  throw new Error('setTimeout has not been defined');
+}
+
+function defaultClearTimeout() {
+  throw new Error('clearTimeout has not been defined');
+}
+
+(function () {
+  try {
+    if (typeof setTimeout === 'function') {
+      cachedSetTimeout = setTimeout;
+    } else {
+      cachedSetTimeout = defaultSetTimout;
+    }
+  } catch (e) {
+    cachedSetTimeout = defaultSetTimout;
+  }
+
+  try {
+    if (typeof clearTimeout === 'function') {
+      cachedClearTimeout = clearTimeout;
+    } else {
+      cachedClearTimeout = defaultClearTimeout;
+    }
+  } catch (e) {
+    cachedClearTimeout = defaultClearTimeout;
+  }
+})();
+
+function runTimeout(fun) {
+  if (cachedSetTimeout === setTimeout) {
+    //normal enviroments in sane situations
+    return setTimeout(fun, 0);
+  } // if setTimeout wasn't available but was latter defined
+
+
+  if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+    cachedSetTimeout = setTimeout;
+    return setTimeout(fun, 0);
+  }
+
+  try {
+    // when when somebody has screwed with setTimeout but no I.E. maddness
+    return cachedSetTimeout(fun, 0);
+  } catch (e) {
+    try {
+      // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+      return cachedSetTimeout.call(null, fun, 0);
+    } catch (e) {
+      // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+      return cachedSetTimeout.call(this, fun, 0);
+    }
+  }
+}
+
+function runClearTimeout(marker) {
+  if (cachedClearTimeout === clearTimeout) {
+    //normal enviroments in sane situations
+    return clearTimeout(marker);
+  } // if clearTimeout wasn't available but was latter defined
+
+
+  if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+    cachedClearTimeout = clearTimeout;
+    return clearTimeout(marker);
+  }
+
+  try {
+    // when when somebody has screwed with setTimeout but no I.E. maddness
+    return cachedClearTimeout(marker);
+  } catch (e) {
+    try {
+      // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+      return cachedClearTimeout.call(null, marker);
+    } catch (e) {
+      // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+      // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+      return cachedClearTimeout.call(this, marker);
+    }
+  }
+}
+
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+  if (!draining || !currentQueue) {
+    return;
+  }
+
+  draining = false;
+
+  if (currentQueue.length) {
+    queue = currentQueue.concat(queue);
+  } else {
+    queueIndex = -1;
+  }
+
+  if (queue.length) {
+    drainQueue();
+  }
+}
+
+function drainQueue() {
+  if (draining) {
+    return;
+  }
+
+  var timeout = runTimeout(cleanUpNextTick);
+  draining = true;
+  var len = queue.length;
+
+  while (len) {
+    currentQueue = queue;
+    queue = [];
+
+    while (++queueIndex < len) {
+      if (currentQueue) {
+        currentQueue[queueIndex].run();
+      }
+    }
+
+    queueIndex = -1;
+    len = queue.length;
+  }
+
+  currentQueue = null;
+  draining = false;
+  runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+  var args = new Array(arguments.length - 1);
+
+  if (arguments.length > 1) {
+    for (var i = 1; i < arguments.length; i++) {
+      args[i - 1] = arguments[i];
+    }
+  }
+
+  queue.push(new Item(fun, args));
+
+  if (queue.length === 1 && !draining) {
+    runTimeout(drainQueue);
+  }
+}; // v8 likes predictible objects
+
+
+function Item(fun, array) {
+  this.fun = fun;
+  this.array = array;
+}
+
+Item.prototype.run = function () {
+  this.fun.apply(null, this.array);
+};
+
+process.title = 'browser';
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) {
+  return [];
+};
+
+process.binding = function (name) {
+  throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () {
+  return '/';
+};
+
+process.chdir = function (dir) {
+  throw new Error('process.chdir is not supported');
+};
+
+process.umask = function () {
+  return 0;
+};
+},{}],"../../node_modules/axios/lib/defaults.js":[function(require,module,exports) {
 var process = require("process");
 'use strict';
 
@@ -11033,6 +11805,7 @@ var defaults = {
   xsrfHeaderName: 'X-XSRF-TOKEN',
 
   maxContentLength: -1,
+  maxBodyLength: -1,
 
   validateStatus: function validateStatus(status) {
     return status >= 200 && status < 300;
@@ -11154,59 +11927,73 @@ module.exports = function mergeConfig(config1, config2) {
   config2 = config2 || {};
   var config = {};
 
-  var valueFromConfig2Keys = ['url', 'method', 'params', 'data'];
-  var mergeDeepPropertiesKeys = ['headers', 'auth', 'proxy'];
+  var valueFromConfig2Keys = ['url', 'method', 'data'];
+  var mergeDeepPropertiesKeys = ['headers', 'auth', 'proxy', 'params'];
   var defaultToConfig2Keys = [
-    'baseURL', 'url', 'transformRequest', 'transformResponse', 'paramsSerializer',
-    'timeout', 'withCredentials', 'adapter', 'responseType', 'xsrfCookieName',
-    'xsrfHeaderName', 'onUploadProgress', 'onDownloadProgress',
-    'maxContentLength', 'validateStatus', 'maxRedirects', 'httpAgent',
-    'httpsAgent', 'cancelToken', 'socketPath'
+    'baseURL', 'transformRequest', 'transformResponse', 'paramsSerializer',
+    'timeout', 'timeoutMessage', 'withCredentials', 'adapter', 'responseType', 'xsrfCookieName',
+    'xsrfHeaderName', 'onUploadProgress', 'onDownloadProgress', 'decompress',
+    'maxContentLength', 'maxBodyLength', 'maxRedirects', 'transport', 'httpAgent',
+    'httpsAgent', 'cancelToken', 'socketPath', 'responseEncoding'
   ];
+  var directMergeKeys = ['validateStatus'];
+
+  function getMergedValue(target, source) {
+    if (utils.isPlainObject(target) && utils.isPlainObject(source)) {
+      return utils.merge(target, source);
+    } else if (utils.isPlainObject(source)) {
+      return utils.merge({}, source);
+    } else if (utils.isArray(source)) {
+      return source.slice();
+    }
+    return source;
+  }
+
+  function mergeDeepProperties(prop) {
+    if (!utils.isUndefined(config2[prop])) {
+      config[prop] = getMergedValue(config1[prop], config2[prop]);
+    } else if (!utils.isUndefined(config1[prop])) {
+      config[prop] = getMergedValue(undefined, config1[prop]);
+    }
+  }
 
   utils.forEach(valueFromConfig2Keys, function valueFromConfig2(prop) {
-    if (typeof config2[prop] !== 'undefined') {
-      config[prop] = config2[prop];
+    if (!utils.isUndefined(config2[prop])) {
+      config[prop] = getMergedValue(undefined, config2[prop]);
     }
   });
 
-  utils.forEach(mergeDeepPropertiesKeys, function mergeDeepProperties(prop) {
-    if (utils.isObject(config2[prop])) {
-      config[prop] = utils.deepMerge(config1[prop], config2[prop]);
-    } else if (typeof config2[prop] !== 'undefined') {
-      config[prop] = config2[prop];
-    } else if (utils.isObject(config1[prop])) {
-      config[prop] = utils.deepMerge(config1[prop]);
-    } else if (typeof config1[prop] !== 'undefined') {
-      config[prop] = config1[prop];
-    }
-  });
+  utils.forEach(mergeDeepPropertiesKeys, mergeDeepProperties);
 
   utils.forEach(defaultToConfig2Keys, function defaultToConfig2(prop) {
-    if (typeof config2[prop] !== 'undefined') {
-      config[prop] = config2[prop];
-    } else if (typeof config1[prop] !== 'undefined') {
-      config[prop] = config1[prop];
+    if (!utils.isUndefined(config2[prop])) {
+      config[prop] = getMergedValue(undefined, config2[prop]);
+    } else if (!utils.isUndefined(config1[prop])) {
+      config[prop] = getMergedValue(undefined, config1[prop]);
+    }
+  });
+
+  utils.forEach(directMergeKeys, function merge(prop) {
+    if (prop in config2) {
+      config[prop] = getMergedValue(config1[prop], config2[prop]);
+    } else if (prop in config1) {
+      config[prop] = getMergedValue(undefined, config1[prop]);
     }
   });
 
   var axiosKeys = valueFromConfig2Keys
     .concat(mergeDeepPropertiesKeys)
-    .concat(defaultToConfig2Keys);
+    .concat(defaultToConfig2Keys)
+    .concat(directMergeKeys);
 
   var otherKeys = Object
-    .keys(config2)
+    .keys(config1)
+    .concat(Object.keys(config2))
     .filter(function filterAxiosKeys(key) {
       return axiosKeys.indexOf(key) === -1;
     });
 
-  utils.forEach(otherKeys, function otherKeysDefaultToConfig2(prop) {
-    if (typeof config2[prop] !== 'undefined') {
-      config[prop] = config2[prop];
-    } else if (typeof config1[prop] !== 'undefined') {
-      config[prop] = config1[prop];
-    }
-  });
+  utils.forEach(otherKeys, mergeDeepProperties);
 
   return config;
 };
@@ -11287,9 +12074,10 @@ Axios.prototype.getUri = function getUri(config) {
 utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
   /*eslint func-names:0*/
   Axios.prototype[method] = function(url, config) {
-    return this.request(utils.merge(config || {}, {
+    return this.request(mergeConfig(config || {}, {
       method: method,
-      url: url
+      url: url,
+      data: (config || {}).data
     }));
   };
 });
@@ -11297,7 +12085,7 @@ utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData
 utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
   /*eslint func-names:0*/
   Axios.prototype[method] = function(url, data, config) {
-    return this.request(utils.merge(config || {}, {
+    return this.request(mergeConfig(config || {}, {
       method: method,
       url: url,
       data: data
@@ -11600,8 +12388,6 @@ require("core-js/modules/es6.object.keys");
 
 require("core-js/modules/es6.object.seal");
 
-require("core-js/modules/es6.object.set-prototype-of");
-
 require("core-js/modules/es7.object.values");
 
 require("core-js/modules/es6.promise");
@@ -11768,45 +12554,48 @@ document.querySelectorAll(".buy-button").forEach(function (btn) {
     _store.default.dispatch((0, _cart.addToCart)(JSON.parse(this.dataset.product)));
   });
 });
-document.getElementById("checkout").addEventListener("click",
-/*#__PURE__*/
-_asyncToGenerator(
-/*#__PURE__*/
-regeneratorRuntime.mark(function _callee() {
-  var _ref2, session, _ref3, error;
+document.getElementById("checkout-form").addEventListener("submit", /*#__PURE__*/function () {
+  var _ref = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee(e) {
+    var _yield$axios$post, session, _yield$stripe$redirec, error;
 
-  return regeneratorRuntime.wrap(function _callee$(_context) {
-    while (1) {
-      switch (_context.prev = _context.next) {
-        case 0:
-          _context.next = 2;
-          return _axios.default.post("/payment", {
-            customer_email: document.getElementById("customer_email").value,
-            cart: _store.default.getState()
-          });
+    return regeneratorRuntime.wrap(function _callee$(_context) {
+      while (1) {
+        switch (_context.prev = _context.next) {
+          case 0:
+            e.preventDefault();
+            document.getElementById("checkout-button").textContent = "Processing...";
+            _context.next = 4;
+            return _axios.default.post("/payment", {
+              customer_email: document.getElementById("customer_email").value,
+              cart: _store.default.getState()
+            });
 
-        case 2:
-          _ref2 = _context.sent;
-          session = _ref2.data.session;
-          _context.next = 6;
-          return stripe.redirectToCheckout({
-            sessionId: session.id
-          });
+          case 4:
+            _yield$axios$post = _context.sent;
+            session = _yield$axios$post.data.session;
+            _context.next = 8;
+            return stripe.redirectToCheckout({
+              sessionId: session.id
+            });
 
-        case 6:
-          _ref3 = _context.sent;
-          error = _ref3.error;
-          document.getElementById("checkout").textContent = "Processing...";
-          console.log(error);
+          case 8:
+            _yield$stripe$redirec = _context.sent;
+            error = _yield$stripe$redirec.error;
+            console.log(error);
 
-        case 10:
-        case "end":
-          return _context.stop();
+          case 11:
+          case "end":
+            return _context.stop();
+        }
       }
-    }
-  }, _callee);
-})));
-},{"core-js/modules/es6.array.copy-within":"../../node_modules/core-js/modules/es6.array.copy-within.js","core-js/modules/es6.array.fill":"../../node_modules/core-js/modules/es6.array.fill.js","core-js/modules/es6.array.find":"../../node_modules/core-js/modules/es6.array.find.js","core-js/modules/es6.array.find-index":"../../node_modules/core-js/modules/es6.array.find-index.js","core-js/modules/es7.array.flat-map":"../../node_modules/core-js/modules/es7.array.flat-map.js","core-js/modules/es6.array.from":"../../node_modules/core-js/modules/es6.array.from.js","core-js/modules/es7.array.includes":"../../node_modules/core-js/modules/es7.array.includes.js","core-js/modules/es6.array.iterator":"../../node_modules/core-js/modules/es6.array.iterator.js","core-js/modules/es6.array.of":"../../node_modules/core-js/modules/es6.array.of.js","core-js/modules/es6.array.sort":"../../node_modules/core-js/modules/es6.array.sort.js","core-js/modules/es6.array.species":"../../node_modules/core-js/modules/es6.array.species.js","core-js/modules/es6.date.to-json":"../../node_modules/core-js/modules/es6.date.to-json.js","core-js/modules/es6.date.to-primitive":"../../node_modules/core-js/modules/es6.date.to-primitive.js","core-js/modules/es6.function.has-instance":"../../node_modules/core-js/modules/es6.function.has-instance.js","core-js/modules/es6.function.name":"../../node_modules/core-js/modules/es6.function.name.js","core-js/modules/es6.map":"../../node_modules/core-js/modules/es6.map.js","core-js/modules/es6.math.acosh":"../../node_modules/core-js/modules/es6.math.acosh.js","core-js/modules/es6.math.asinh":"../../node_modules/core-js/modules/es6.math.asinh.js","core-js/modules/es6.math.atanh":"../../node_modules/core-js/modules/es6.math.atanh.js","core-js/modules/es6.math.cbrt":"../../node_modules/core-js/modules/es6.math.cbrt.js","core-js/modules/es6.math.clz32":"../../node_modules/core-js/modules/es6.math.clz32.js","core-js/modules/es6.math.cosh":"../../node_modules/core-js/modules/es6.math.cosh.js","core-js/modules/es6.math.expm1":"../../node_modules/core-js/modules/es6.math.expm1.js","core-js/modules/es6.math.fround":"../../node_modules/core-js/modules/es6.math.fround.js","core-js/modules/es6.math.hypot":"../../node_modules/core-js/modules/es6.math.hypot.js","core-js/modules/es6.math.imul":"../../node_modules/core-js/modules/es6.math.imul.js","core-js/modules/es6.math.log1p":"../../node_modules/core-js/modules/es6.math.log1p.js","core-js/modules/es6.math.log10":"../../node_modules/core-js/modules/es6.math.log10.js","core-js/modules/es6.math.log2":"../../node_modules/core-js/modules/es6.math.log2.js","core-js/modules/es6.math.sign":"../../node_modules/core-js/modules/es6.math.sign.js","core-js/modules/es6.math.sinh":"../../node_modules/core-js/modules/es6.math.sinh.js","core-js/modules/es6.math.tanh":"../../node_modules/core-js/modules/es6.math.tanh.js","core-js/modules/es6.math.trunc":"../../node_modules/core-js/modules/es6.math.trunc.js","core-js/modules/es6.number.constructor":"../../node_modules/core-js/modules/es6.number.constructor.js","core-js/modules/es6.number.epsilon":"../../node_modules/core-js/modules/es6.number.epsilon.js","core-js/modules/es6.number.is-finite":"../../node_modules/core-js/modules/es6.number.is-finite.js","core-js/modules/es6.number.is-integer":"../../node_modules/core-js/modules/es6.number.is-integer.js","core-js/modules/es6.number.is-nan":"../../node_modules/core-js/modules/es6.number.is-nan.js","core-js/modules/es6.number.is-safe-integer":"../../node_modules/core-js/modules/es6.number.is-safe-integer.js","core-js/modules/es6.number.max-safe-integer":"../../node_modules/core-js/modules/es6.number.max-safe-integer.js","core-js/modules/es6.number.min-safe-integer":"../../node_modules/core-js/modules/es6.number.min-safe-integer.js","core-js/modules/es6.number.parse-float":"../../node_modules/core-js/modules/es6.number.parse-float.js","core-js/modules/es6.number.parse-int":"../../node_modules/core-js/modules/es6.number.parse-int.js","core-js/modules/es6.object.assign":"../../node_modules/core-js/modules/es6.object.assign.js","core-js/modules/es7.object.define-getter":"../../node_modules/core-js/modules/es7.object.define-getter.js","core-js/modules/es7.object.define-setter":"../../node_modules/core-js/modules/es7.object.define-setter.js","core-js/modules/es7.object.entries":"../../node_modules/core-js/modules/es7.object.entries.js","core-js/modules/es6.object.freeze":"../../node_modules/core-js/modules/es6.object.freeze.js","core-js/modules/es6.object.get-own-property-descriptor":"../../node_modules/core-js/modules/es6.object.get-own-property-descriptor.js","core-js/modules/es7.object.get-own-property-descriptors":"../../node_modules/core-js/modules/es7.object.get-own-property-descriptors.js","core-js/modules/es6.object.get-own-property-names":"../../node_modules/core-js/modules/es6.object.get-own-property-names.js","core-js/modules/es6.object.get-prototype-of":"../../node_modules/core-js/modules/es6.object.get-prototype-of.js","core-js/modules/es7.object.lookup-getter":"../../node_modules/core-js/modules/es7.object.lookup-getter.js","core-js/modules/es7.object.lookup-setter":"../../node_modules/core-js/modules/es7.object.lookup-setter.js","core-js/modules/es6.object.prevent-extensions":"../../node_modules/core-js/modules/es6.object.prevent-extensions.js","core-js/modules/es6.object.to-string":"../../node_modules/core-js/modules/es6.object.to-string.js","core-js/modules/es6.object.is":"../../node_modules/core-js/modules/es6.object.is.js","core-js/modules/es6.object.is-frozen":"../../node_modules/core-js/modules/es6.object.is-frozen.js","core-js/modules/es6.object.is-sealed":"../../node_modules/core-js/modules/es6.object.is-sealed.js","core-js/modules/es6.object.is-extensible":"../../node_modules/core-js/modules/es6.object.is-extensible.js","core-js/modules/es6.object.keys":"../../node_modules/core-js/modules/es6.object.keys.js","core-js/modules/es6.object.seal":"../../node_modules/core-js/modules/es6.object.seal.js","core-js/modules/es6.object.set-prototype-of":"../../node_modules/core-js/modules/es6.object.set-prototype-of.js","core-js/modules/es7.object.values":"../../node_modules/core-js/modules/es7.object.values.js","core-js/modules/es6.promise":"../../node_modules/core-js/modules/es6.promise.js","core-js/modules/es7.promise.finally":"../../node_modules/core-js/modules/es7.promise.finally.js","core-js/modules/es6.reflect.apply":"../../node_modules/core-js/modules/es6.reflect.apply.js","core-js/modules/es6.reflect.construct":"../../node_modules/core-js/modules/es6.reflect.construct.js","core-js/modules/es6.reflect.define-property":"../../node_modules/core-js/modules/es6.reflect.define-property.js","core-js/modules/es6.reflect.delete-property":"../../node_modules/core-js/modules/es6.reflect.delete-property.js","core-js/modules/es6.reflect.get":"../../node_modules/core-js/modules/es6.reflect.get.js","core-js/modules/es6.reflect.get-own-property-descriptor":"../../node_modules/core-js/modules/es6.reflect.get-own-property-descriptor.js","core-js/modules/es6.reflect.get-prototype-of":"../../node_modules/core-js/modules/es6.reflect.get-prototype-of.js","core-js/modules/es6.reflect.has":"../../node_modules/core-js/modules/es6.reflect.has.js","core-js/modules/es6.reflect.is-extensible":"../../node_modules/core-js/modules/es6.reflect.is-extensible.js","core-js/modules/es6.reflect.own-keys":"../../node_modules/core-js/modules/es6.reflect.own-keys.js","core-js/modules/es6.reflect.prevent-extensions":"../../node_modules/core-js/modules/es6.reflect.prevent-extensions.js","core-js/modules/es6.reflect.set":"../../node_modules/core-js/modules/es6.reflect.set.js","core-js/modules/es6.reflect.set-prototype-of":"../../node_modules/core-js/modules/es6.reflect.set-prototype-of.js","core-js/modules/es6.regexp.constructor":"../../node_modules/core-js/modules/es6.regexp.constructor.js","core-js/modules/es6.regexp.flags":"../../node_modules/core-js/modules/es6.regexp.flags.js","core-js/modules/es6.regexp.match":"../../node_modules/core-js/modules/es6.regexp.match.js","core-js/modules/es6.regexp.replace":"../../node_modules/core-js/modules/es6.regexp.replace.js","core-js/modules/es6.regexp.split":"../../node_modules/core-js/modules/es6.regexp.split.js","core-js/modules/es6.regexp.search":"../../node_modules/core-js/modules/es6.regexp.search.js","core-js/modules/es6.regexp.to-string":"../../node_modules/core-js/modules/es6.regexp.to-string.js","core-js/modules/es6.set":"../../node_modules/core-js/modules/es6.set.js","core-js/modules/es6.symbol":"../../node_modules/core-js/modules/es6.symbol.js","core-js/modules/es7.symbol.async-iterator":"../../node_modules/core-js/modules/es7.symbol.async-iterator.js","core-js/modules/es6.string.anchor":"../../node_modules/core-js/modules/es6.string.anchor.js","core-js/modules/es6.string.big":"../../node_modules/core-js/modules/es6.string.big.js","core-js/modules/es6.string.blink":"../../node_modules/core-js/modules/es6.string.blink.js","core-js/modules/es6.string.bold":"../../node_modules/core-js/modules/es6.string.bold.js","core-js/modules/es6.string.code-point-at":"../../node_modules/core-js/modules/es6.string.code-point-at.js","core-js/modules/es6.string.ends-with":"../../node_modules/core-js/modules/es6.string.ends-with.js","core-js/modules/es6.string.fixed":"../../node_modules/core-js/modules/es6.string.fixed.js","core-js/modules/es6.string.fontcolor":"../../node_modules/core-js/modules/es6.string.fontcolor.js","core-js/modules/es6.string.fontsize":"../../node_modules/core-js/modules/es6.string.fontsize.js","core-js/modules/es6.string.from-code-point":"../../node_modules/core-js/modules/es6.string.from-code-point.js","core-js/modules/es6.string.includes":"../../node_modules/core-js/modules/es6.string.includes.js","core-js/modules/es6.string.italics":"../../node_modules/core-js/modules/es6.string.italics.js","core-js/modules/es6.string.iterator":"../../node_modules/core-js/modules/es6.string.iterator.js","core-js/modules/es6.string.link":"../../node_modules/core-js/modules/es6.string.link.js","core-js/modules/es7.string.pad-start":"../../node_modules/core-js/modules/es7.string.pad-start.js","core-js/modules/es7.string.pad-end":"../../node_modules/core-js/modules/es7.string.pad-end.js","core-js/modules/es6.string.raw":"../../node_modules/core-js/modules/es6.string.raw.js","core-js/modules/es6.string.repeat":"../../node_modules/core-js/modules/es6.string.repeat.js","core-js/modules/es6.string.small":"../../node_modules/core-js/modules/es6.string.small.js","core-js/modules/es6.string.starts-with":"../../node_modules/core-js/modules/es6.string.starts-with.js","core-js/modules/es6.string.strike":"../../node_modules/core-js/modules/es6.string.strike.js","core-js/modules/es6.string.sub":"../../node_modules/core-js/modules/es6.string.sub.js","core-js/modules/es6.string.sup":"../../node_modules/core-js/modules/es6.string.sup.js","core-js/modules/es7.string.trim-left":"../../node_modules/core-js/modules/es7.string.trim-left.js","core-js/modules/es7.string.trim-right":"../../node_modules/core-js/modules/es7.string.trim-right.js","core-js/modules/es6.typed.array-buffer":"../../node_modules/core-js/modules/es6.typed.array-buffer.js","core-js/modules/es6.typed.int8-array":"../../node_modules/core-js/modules/es6.typed.int8-array.js","core-js/modules/es6.typed.uint8-array":"../../node_modules/core-js/modules/es6.typed.uint8-array.js","core-js/modules/es6.typed.uint8-clamped-array":"../../node_modules/core-js/modules/es6.typed.uint8-clamped-array.js","core-js/modules/es6.typed.int16-array":"../../node_modules/core-js/modules/es6.typed.int16-array.js","core-js/modules/es6.typed.uint16-array":"../../node_modules/core-js/modules/es6.typed.uint16-array.js","core-js/modules/es6.typed.int32-array":"../../node_modules/core-js/modules/es6.typed.int32-array.js","core-js/modules/es6.typed.uint32-array":"../../node_modules/core-js/modules/es6.typed.uint32-array.js","core-js/modules/es6.typed.float32-array":"../../node_modules/core-js/modules/es6.typed.float32-array.js","core-js/modules/es6.typed.float64-array":"../../node_modules/core-js/modules/es6.typed.float64-array.js","core-js/modules/es6.weak-map":"../../node_modules/core-js/modules/es6.weak-map.js","core-js/modules/es6.weak-set":"../../node_modules/core-js/modules/es6.weak-set.js","core-js/modules/web.timers":"../../node_modules/core-js/modules/web.timers.js","core-js/modules/web.immediate":"../../node_modules/core-js/modules/web.immediate.js","core-js/modules/web.dom.iterable":"../../node_modules/core-js/modules/web.dom.iterable.js","regenerator-runtime/runtime":"../../node_modules/regenerator-runtime/runtime.js","./store/store":"store/store.js","./store/cart":"store/cart.js","./renderCart":"renderCart.js","./renderCartItemCount":"renderCartItemCount.js","axios":"../../node_modules/axios/index.js"}],"../../node_modules/parcel-bundler/src/builtins/hmr-runtime.js":[function(require,module,exports) {
+    }, _callee);
+  }));
+
+  return function (_x) {
+    return _ref.apply(this, arguments);
+  };
+}());
+},{"core-js/modules/es6.array.copy-within":"../../node_modules/core-js/modules/es6.array.copy-within.js","core-js/modules/es6.array.fill":"../../node_modules/core-js/modules/es6.array.fill.js","core-js/modules/es6.array.find":"../../node_modules/core-js/modules/es6.array.find.js","core-js/modules/es6.array.find-index":"../../node_modules/core-js/modules/es6.array.find-index.js","core-js/modules/es7.array.flat-map":"../../node_modules/core-js/modules/es7.array.flat-map.js","core-js/modules/es6.array.from":"../../node_modules/core-js/modules/es6.array.from.js","core-js/modules/es7.array.includes":"../../node_modules/core-js/modules/es7.array.includes.js","core-js/modules/es6.array.iterator":"../../node_modules/core-js/modules/es6.array.iterator.js","core-js/modules/es6.array.of":"../../node_modules/core-js/modules/es6.array.of.js","core-js/modules/es6.array.sort":"../../node_modules/core-js/modules/es6.array.sort.js","core-js/modules/es6.array.species":"../../node_modules/core-js/modules/es6.array.species.js","core-js/modules/es6.date.to-json":"../../node_modules/core-js/modules/es6.date.to-json.js","core-js/modules/es6.date.to-primitive":"../../node_modules/core-js/modules/es6.date.to-primitive.js","core-js/modules/es6.function.has-instance":"../../node_modules/core-js/modules/es6.function.has-instance.js","core-js/modules/es6.function.name":"../../node_modules/core-js/modules/es6.function.name.js","core-js/modules/es6.map":"../../node_modules/core-js/modules/es6.map.js","core-js/modules/es6.math.acosh":"../../node_modules/core-js/modules/es6.math.acosh.js","core-js/modules/es6.math.asinh":"../../node_modules/core-js/modules/es6.math.asinh.js","core-js/modules/es6.math.atanh":"../../node_modules/core-js/modules/es6.math.atanh.js","core-js/modules/es6.math.cbrt":"../../node_modules/core-js/modules/es6.math.cbrt.js","core-js/modules/es6.math.clz32":"../../node_modules/core-js/modules/es6.math.clz32.js","core-js/modules/es6.math.cosh":"../../node_modules/core-js/modules/es6.math.cosh.js","core-js/modules/es6.math.expm1":"../../node_modules/core-js/modules/es6.math.expm1.js","core-js/modules/es6.math.fround":"../../node_modules/core-js/modules/es6.math.fround.js","core-js/modules/es6.math.hypot":"../../node_modules/core-js/modules/es6.math.hypot.js","core-js/modules/es6.math.imul":"../../node_modules/core-js/modules/es6.math.imul.js","core-js/modules/es6.math.log1p":"../../node_modules/core-js/modules/es6.math.log1p.js","core-js/modules/es6.math.log10":"../../node_modules/core-js/modules/es6.math.log10.js","core-js/modules/es6.math.log2":"../../node_modules/core-js/modules/es6.math.log2.js","core-js/modules/es6.math.sign":"../../node_modules/core-js/modules/es6.math.sign.js","core-js/modules/es6.math.sinh":"../../node_modules/core-js/modules/es6.math.sinh.js","core-js/modules/es6.math.tanh":"../../node_modules/core-js/modules/es6.math.tanh.js","core-js/modules/es6.math.trunc":"../../node_modules/core-js/modules/es6.math.trunc.js","core-js/modules/es6.number.constructor":"../../node_modules/core-js/modules/es6.number.constructor.js","core-js/modules/es6.number.epsilon":"../../node_modules/core-js/modules/es6.number.epsilon.js","core-js/modules/es6.number.is-finite":"../../node_modules/core-js/modules/es6.number.is-finite.js","core-js/modules/es6.number.is-integer":"../../node_modules/core-js/modules/es6.number.is-integer.js","core-js/modules/es6.number.is-nan":"../../node_modules/core-js/modules/es6.number.is-nan.js","core-js/modules/es6.number.is-safe-integer":"../../node_modules/core-js/modules/es6.number.is-safe-integer.js","core-js/modules/es6.number.max-safe-integer":"../../node_modules/core-js/modules/es6.number.max-safe-integer.js","core-js/modules/es6.number.min-safe-integer":"../../node_modules/core-js/modules/es6.number.min-safe-integer.js","core-js/modules/es6.number.parse-float":"../../node_modules/core-js/modules/es6.number.parse-float.js","core-js/modules/es6.number.parse-int":"../../node_modules/core-js/modules/es6.number.parse-int.js","core-js/modules/es6.object.assign":"../../node_modules/core-js/modules/es6.object.assign.js","core-js/modules/es7.object.define-getter":"../../node_modules/core-js/modules/es7.object.define-getter.js","core-js/modules/es7.object.define-setter":"../../node_modules/core-js/modules/es7.object.define-setter.js","core-js/modules/es7.object.entries":"../../node_modules/core-js/modules/es7.object.entries.js","core-js/modules/es6.object.freeze":"../../node_modules/core-js/modules/es6.object.freeze.js","core-js/modules/es6.object.get-own-property-descriptor":"../../node_modules/core-js/modules/es6.object.get-own-property-descriptor.js","core-js/modules/es7.object.get-own-property-descriptors":"../../node_modules/core-js/modules/es7.object.get-own-property-descriptors.js","core-js/modules/es6.object.get-own-property-names":"../../node_modules/core-js/modules/es6.object.get-own-property-names.js","core-js/modules/es6.object.get-prototype-of":"../../node_modules/core-js/modules/es6.object.get-prototype-of.js","core-js/modules/es7.object.lookup-getter":"../../node_modules/core-js/modules/es7.object.lookup-getter.js","core-js/modules/es7.object.lookup-setter":"../../node_modules/core-js/modules/es7.object.lookup-setter.js","core-js/modules/es6.object.prevent-extensions":"../../node_modules/core-js/modules/es6.object.prevent-extensions.js","core-js/modules/es6.object.to-string":"../../node_modules/core-js/modules/es6.object.to-string.js","core-js/modules/es6.object.is":"../../node_modules/core-js/modules/es6.object.is.js","core-js/modules/es6.object.is-frozen":"../../node_modules/core-js/modules/es6.object.is-frozen.js","core-js/modules/es6.object.is-sealed":"../../node_modules/core-js/modules/es6.object.is-sealed.js","core-js/modules/es6.object.is-extensible":"../../node_modules/core-js/modules/es6.object.is-extensible.js","core-js/modules/es6.object.keys":"../../node_modules/core-js/modules/es6.object.keys.js","core-js/modules/es6.object.seal":"../../node_modules/core-js/modules/es6.object.seal.js","core-js/modules/es7.object.values":"../../node_modules/core-js/modules/es7.object.values.js","core-js/modules/es6.promise":"../../node_modules/core-js/modules/es6.promise.js","core-js/modules/es7.promise.finally":"../../node_modules/core-js/modules/es7.promise.finally.js","core-js/modules/es6.reflect.apply":"../../node_modules/core-js/modules/es6.reflect.apply.js","core-js/modules/es6.reflect.construct":"../../node_modules/core-js/modules/es6.reflect.construct.js","core-js/modules/es6.reflect.define-property":"../../node_modules/core-js/modules/es6.reflect.define-property.js","core-js/modules/es6.reflect.delete-property":"../../node_modules/core-js/modules/es6.reflect.delete-property.js","core-js/modules/es6.reflect.get":"../../node_modules/core-js/modules/es6.reflect.get.js","core-js/modules/es6.reflect.get-own-property-descriptor":"../../node_modules/core-js/modules/es6.reflect.get-own-property-descriptor.js","core-js/modules/es6.reflect.get-prototype-of":"../../node_modules/core-js/modules/es6.reflect.get-prototype-of.js","core-js/modules/es6.reflect.has":"../../node_modules/core-js/modules/es6.reflect.has.js","core-js/modules/es6.reflect.is-extensible":"../../node_modules/core-js/modules/es6.reflect.is-extensible.js","core-js/modules/es6.reflect.own-keys":"../../node_modules/core-js/modules/es6.reflect.own-keys.js","core-js/modules/es6.reflect.prevent-extensions":"../../node_modules/core-js/modules/es6.reflect.prevent-extensions.js","core-js/modules/es6.reflect.set":"../../node_modules/core-js/modules/es6.reflect.set.js","core-js/modules/es6.reflect.set-prototype-of":"../../node_modules/core-js/modules/es6.reflect.set-prototype-of.js","core-js/modules/es6.regexp.constructor":"../../node_modules/core-js/modules/es6.regexp.constructor.js","core-js/modules/es6.regexp.flags":"../../node_modules/core-js/modules/es6.regexp.flags.js","core-js/modules/es6.regexp.match":"../../node_modules/core-js/modules/es6.regexp.match.js","core-js/modules/es6.regexp.replace":"../../node_modules/core-js/modules/es6.regexp.replace.js","core-js/modules/es6.regexp.split":"../../node_modules/core-js/modules/es6.regexp.split.js","core-js/modules/es6.regexp.search":"../../node_modules/core-js/modules/es6.regexp.search.js","core-js/modules/es6.regexp.to-string":"../../node_modules/core-js/modules/es6.regexp.to-string.js","core-js/modules/es6.set":"../../node_modules/core-js/modules/es6.set.js","core-js/modules/es6.symbol":"../../node_modules/core-js/modules/es6.symbol.js","core-js/modules/es7.symbol.async-iterator":"../../node_modules/core-js/modules/es7.symbol.async-iterator.js","core-js/modules/es6.string.anchor":"../../node_modules/core-js/modules/es6.string.anchor.js","core-js/modules/es6.string.big":"../../node_modules/core-js/modules/es6.string.big.js","core-js/modules/es6.string.blink":"../../node_modules/core-js/modules/es6.string.blink.js","core-js/modules/es6.string.bold":"../../node_modules/core-js/modules/es6.string.bold.js","core-js/modules/es6.string.code-point-at":"../../node_modules/core-js/modules/es6.string.code-point-at.js","core-js/modules/es6.string.ends-with":"../../node_modules/core-js/modules/es6.string.ends-with.js","core-js/modules/es6.string.fixed":"../../node_modules/core-js/modules/es6.string.fixed.js","core-js/modules/es6.string.fontcolor":"../../node_modules/core-js/modules/es6.string.fontcolor.js","core-js/modules/es6.string.fontsize":"../../node_modules/core-js/modules/es6.string.fontsize.js","core-js/modules/es6.string.from-code-point":"../../node_modules/core-js/modules/es6.string.from-code-point.js","core-js/modules/es6.string.includes":"../../node_modules/core-js/modules/es6.string.includes.js","core-js/modules/es6.string.italics":"../../node_modules/core-js/modules/es6.string.italics.js","core-js/modules/es6.string.iterator":"../../node_modules/core-js/modules/es6.string.iterator.js","core-js/modules/es6.string.link":"../../node_modules/core-js/modules/es6.string.link.js","core-js/modules/es7.string.pad-start":"../../node_modules/core-js/modules/es7.string.pad-start.js","core-js/modules/es7.string.pad-end":"../../node_modules/core-js/modules/es7.string.pad-end.js","core-js/modules/es6.string.raw":"../../node_modules/core-js/modules/es6.string.raw.js","core-js/modules/es6.string.repeat":"../../node_modules/core-js/modules/es6.string.repeat.js","core-js/modules/es6.string.small":"../../node_modules/core-js/modules/es6.string.small.js","core-js/modules/es6.string.starts-with":"../../node_modules/core-js/modules/es6.string.starts-with.js","core-js/modules/es6.string.strike":"../../node_modules/core-js/modules/es6.string.strike.js","core-js/modules/es6.string.sub":"../../node_modules/core-js/modules/es6.string.sub.js","core-js/modules/es6.string.sup":"../../node_modules/core-js/modules/es6.string.sup.js","core-js/modules/es7.string.trim-left":"../../node_modules/core-js/modules/es7.string.trim-left.js","core-js/modules/es7.string.trim-right":"../../node_modules/core-js/modules/es7.string.trim-right.js","core-js/modules/es6.typed.array-buffer":"../../node_modules/core-js/modules/es6.typed.array-buffer.js","core-js/modules/es6.typed.int8-array":"../../node_modules/core-js/modules/es6.typed.int8-array.js","core-js/modules/es6.typed.uint8-array":"../../node_modules/core-js/modules/es6.typed.uint8-array.js","core-js/modules/es6.typed.uint8-clamped-array":"../../node_modules/core-js/modules/es6.typed.uint8-clamped-array.js","core-js/modules/es6.typed.int16-array":"../../node_modules/core-js/modules/es6.typed.int16-array.js","core-js/modules/es6.typed.uint16-array":"../../node_modules/core-js/modules/es6.typed.uint16-array.js","core-js/modules/es6.typed.int32-array":"../../node_modules/core-js/modules/es6.typed.int32-array.js","core-js/modules/es6.typed.uint32-array":"../../node_modules/core-js/modules/es6.typed.uint32-array.js","core-js/modules/es6.typed.float32-array":"../../node_modules/core-js/modules/es6.typed.float32-array.js","core-js/modules/es6.typed.float64-array":"../../node_modules/core-js/modules/es6.typed.float64-array.js","core-js/modules/es6.weak-map":"../../node_modules/core-js/modules/es6.weak-map.js","core-js/modules/es6.weak-set":"../../node_modules/core-js/modules/es6.weak-set.js","core-js/modules/web.timers":"../../node_modules/core-js/modules/web.timers.js","core-js/modules/web.immediate":"../../node_modules/core-js/modules/web.immediate.js","core-js/modules/web.dom.iterable":"../../node_modules/core-js/modules/web.dom.iterable.js","regenerator-runtime/runtime":"../../node_modules/regenerator-runtime/runtime.js","./store/store":"store/store.js","./store/cart":"store/cart.js","./renderCart":"renderCart.js","./renderCartItemCount":"renderCartItemCount.js","axios":"../../node_modules/axios/index.js"}],"../../node_modules/parcel-bundler/src/builtins/hmr-runtime.js":[function(require,module,exports) {
 var global = arguments[3];
 var OVERLAY_ID = '__parcel__error__overlay__';
 var OldModule = module.bundle.Module;
@@ -11834,7 +12623,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "52069" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "55550" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};
